@@ -120,22 +120,22 @@ class DemoSeeder extends Seeder
         $caretakers[1]->update(['name' => 'Antonio Greco', 'email' => 'custode2@condoflow.test', 'password' => bcrypt('password')]);
         $condominium->caretakers()->attach($caretakers->pluck('id'));
 
-        // Un unico corpo di fabbrica, 3 piani (T, 1, 2), 45 unità per piano = 135 unità.
-        // Codice unità = "{piano}/{numero}", numero 1-45 come richiesto (es. "T/12", "1/12", "2/12").
-        $building = Building::create([
-            'condominium_id' => $condominium->id,
-            'name' => 'Corpo Unico',
-            'code' => 'A',
-            'floors_count' => 3,
-        ]);
-
+        // 45 colonne verticali, ciascuna con 3 unità (una per piano: T, 1, 2) = 135 unità.
+        // Ogni colonna è un edificio/scala a sé: colonna N contiene le unità T/N, 1/N, 2/N.
         $units = collect();
-        foreach (['T', '1', '2'] as $floorCode) {
-            for ($n = 1; $n <= 45; $n++) {
+        for ($column = 1; $column <= 45; $column++) {
+            $building = Building::create([
+                'condominium_id' => $condominium->id,
+                'name' => "Colonna {$column}",
+                'code' => (string) $column,
+                'floors_count' => 3,
+            ]);
+
+            foreach (['T', '1', '2'] as $floorCode) {
                 $units->push(Unit::create([
                     'condominium_id' => $condominium->id,
                     'building_id' => $building->id,
-                    'code' => "{$floorCode}/{$n}",
+                    'code' => "{$floorCode}/{$column}",
                     'floor' => $floorCode,
                     'type' => UnitType::Apartment,
                     'surface_sqm' => fake()->randomFloat(2, 55, 130),
@@ -208,7 +208,7 @@ class DemoSeeder extends Seeder
                 'description' => fake()->realText(180),
                 'priority' => $priority,
                 'status' => TicketStatus::New,
-                'location' => fake()->optional()->randomElement(['Cortile', 'Ingresso', 'Parcheggio', 'Corridoio piano '.$unit->floor]),
+                'location' => fake()->optional()->randomElement(['Cortile', 'Parcheggio', 'Corridoio piano '.$unit->floor, 'Colonna '.$unit->building?->code]),
                 'created_at' => $createdAt,
                 'updated_at' => $createdAt,
             ]);
@@ -361,7 +361,7 @@ class DemoSeeder extends Seeder
             $buildingAnnouncement = Announcement::create([
                 'condominium_id' => $condominium->id,
                 'created_by' => $admin->id,
-                'title' => 'Lavori idraulici in corso nel palazzo',
+                'title' => "Lavori idraulici Colonna {$building->code}",
                 'content' => fake()->paragraph(),
                 'priority' => AnnouncementPriority::Important,
                 'audience' => AnnouncementAudience::Buildings,
