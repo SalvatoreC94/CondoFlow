@@ -55,7 +55,7 @@ async function submit() {
   try {
     const condominiumId = units.value.find(
       (u) => u.id === Number(form.value.unit_id),
-    )?.condominium?.id;
+    )?.condominium_id;
     const { data } = await api.post("/api/tickets", {
       ...form.value,
       unit_id: form.value.unit_id || null,

@@ -49,6 +49,24 @@ it('rejects unauthenticated access to /api/me', function () {
     $this->getJson('/api/me')->assertUnauthorized();
 });
 
+it('includes the condominium id and name on the condominos units in /api/me', function () {
+    // Regression test: the frontend derives condominium_id from
+    // units[].condominium_id/condominium.name when creating tickets and
+    // loading the condomino's home/documents/announcements screens. If
+    // UnitResource ever drops these fields, those screens silently break.
+    $admin = adminUser();
+    $condominium = condominiumFor($admin);
+    $unit = unitIn($condominium);
+    $resident = residentOf($unit);
+
+    $response = $this->actingAs($resident, 'sanctum')->getJson('/api/me');
+
+    $response->assertOk()
+        ->assertJsonPath('data.units.0.condominium_id', $condominium->id)
+        ->assertJsonPath('data.units.0.condominium.id', $condominium->id)
+        ->assertJsonPath('data.units.0.condominium.name', $condominium->name);
+});
+
 it('logs out and invalidates the session', function () {
     $user = User::factory()->administrator()->create();
 
