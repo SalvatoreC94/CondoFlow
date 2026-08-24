@@ -12,6 +12,7 @@ class UnitResource extends JsonResource
         return [
             'id' => $this->id,
             'condominium_id' => $this->condominium_id,
+            'condominium' => new CondominiumResource($this->whenLoaded('condominium')),
             'building' => new BuildingResource($this->whenLoaded('building')),
             'code' => $this->code,
             'floor' => $this->floor,
