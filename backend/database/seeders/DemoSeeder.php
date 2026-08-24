@@ -24,8 +24,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
- * Realistic demo dataset for CondoFlow: the "Parco Marina" seaside condominium
- * (140 units) plus a couple of extra condominiums to exercise multi-tenancy.
+ * Realistic demo dataset for CondoFlow: the "Parco Nuova California"
+ * condominium (140 units), one administrator, two caretakers, 50 residents.
  */
 class DemoSeeder extends Seeder
 {
@@ -39,27 +39,17 @@ class DemoSeeder extends Seeder
     {
         $this->seedReferenceData();
 
-        $admin1 = User::factory()->administrator()->create([
+        $admin = User::factory()->administrator()->create([
             'name' => 'Giulia Ferretti',
             'email' => 'admin@condoflow.test',
             'password' => bcrypt('password'),
         ]);
 
-        $admin2 = User::factory()->administrator()->create([
-            'name' => 'Marco Bellini',
-            'email' => 'admin2@condoflow.test',
-            'password' => bcrypt('password'),
-        ]);
-
-        $parcoMarina = $this->seedParcoMarina($admin1);
-        $this->seedResidenzaIPini($admin1);
-        $this->seedTorreNord($admin2);
+        $condominium = $this->seedCondominium($admin);
 
         $this->command?->info('Demo seed completato.');
         $this->command?->table(['Condominio', 'Unità', 'Amministratore'], [
-            ['Parco Marina', 140, $admin1->email],
-            ['Residenza I Pini', 24, $admin1->email],
-            ['Torre Nord', 16, $admin2->email],
+            [$condominium->name, 140, $admin->email],
         ]);
     }
 
@@ -110,11 +100,11 @@ class DemoSeeder extends Seeder
         }
     }
 
-    private function seedParcoMarina(User $admin): Condominium
+    private function seedCondominium(User $admin): Condominium
     {
         $condominium = Condominium::create([
             'administrator_id' => $admin->id,
-            'name' => 'Parco Marina',
+            'name' => 'Parco Nuova California',
             'address' => 'Viale delle Palme, 140',
             'city' => 'San Benedetto del Tronto',
             'province' => 'AP',
@@ -181,7 +171,7 @@ class DemoSeeder extends Seeder
         $condominium->suppliers()->attach($suppliers->pluck('id'));
 
         $this->seedTickets($condominium, $units, $residents, $caretakers, $suppliers);
-        $this->seedAnnouncements($condominium, $admin, $residents, $units);
+        $this->seedAnnouncements($condominium, $admin, $units);
         $this->seedDocuments($condominium, $admin);
 
         return $condominium;
@@ -189,7 +179,6 @@ class DemoSeeder extends Seeder
 
     private function seedTickets($condominium, $units, $residents, $caretakers, $suppliers): void
     {
-        $occupiedUnitIds = $units->filter(fn (Unit $u) => $u->users()->exists());
         $statusWeights = [
             TicketStatus::New,
             TicketStatus::New,
@@ -271,7 +260,6 @@ class DemoSeeder extends Seeder
 
     private function progressTicketTo(Ticket $ticket, TicketStatus $target, $caretakers, $suppliers, \DateTime $createdAt): void
     {
-        $timeline = [];
         $cursor = TicketStatus::New;
         $path = match ($target) {
             TicketStatus::New => [],
@@ -347,7 +335,7 @@ class DemoSeeder extends Seeder
         ]);
     }
 
-    private function seedAnnouncements(Condominium $condominium, User $admin, $residents, $units): void
+    private function seedAnnouncements(Condominium $condominium, User $admin, $units): void
     {
         $announcements = [
             ['title' => 'Pulizia straordinaria giardini', 'priority' => AnnouncementPriority::Normal],
@@ -413,121 +401,6 @@ class DemoSeeder extends Seeder
                 'size' => strlen($pdf),
                 'visibility' => 'all',
                 'published_at' => now()->subDays(random_int(1, 60)),
-            ]);
-        }
-    }
-
-    private function seedResidenzaIPini(User $admin): void
-    {
-        $condominium = Condominium::create([
-            'administrator_id' => $admin->id,
-            'name' => 'Residenza I Pini',
-            'address' => 'Via dei Pini, 8',
-            'city' => 'Grottammare',
-            'province' => 'AP',
-            'postal_code' => '63066',
-            'country' => 'IT',
-            'total_units' => 24,
-            'description' => 'Piccola residenza immersa nel verde, 2 scale.',
-        ]);
-
-        $units = collect();
-        foreach (range('A', 'B') as $letter) {
-            $building = Building::create([
-                'condominium_id' => $condominium->id,
-                'name' => "Scala {$letter}",
-                'code' => $letter,
-                'floors_count' => 4,
-            ]);
-            for ($floor = 1; $floor <= 4; $floor++) {
-                for ($n = 1; $n <= 3; $n++) {
-                    $units->push(Unit::create([
-                        'condominium_id' => $condominium->id,
-                        'building_id' => $building->id,
-                        'code' => sprintf('%s%d0%d', $letter, $floor, $n),
-                        'floor' => (string) $floor,
-                        'type' => UnitType::Apartment,
-                        'surface_sqm' => fake()->randomFloat(2, 60, 110),
-                    ]));
-                }
-            }
-        }
-
-        $residents = User::factory()->condomino()->count(8)->create();
-        foreach ($residents as $i => $resident) {
-            $units[$i]->users()->attach($resident->id, ['relationship' => 'owner', 'is_primary' => true]);
-        }
-
-        Announcement::create([
-            'condominium_id' => $condominium->id,
-            'created_by' => $admin->id,
-            'title' => 'Potatura alberi comuni',
-            'content' => fake()->paragraph(),
-            'priority' => AnnouncementPriority::Normal,
-            'audience' => AnnouncementAudience::All,
-            'published_at' => now()->subDays(2),
-        ]);
-
-        foreach (range(1, 5) as $i) {
-            $unit = $units->random();
-            $reporter = $unit->users()->first() ?? $residents->random();
-            Ticket::create([
-                'condominium_id' => $condominium->id,
-                'unit_id' => $unit->id,
-                'ticket_category_id' => fake()->randomElement($this->ticketCategories)->id,
-                'created_by' => $reporter->id,
-                'title' => fake()->sentence(6),
-                'description' => fake()->realText(120),
-                'priority' => fake()->randomElement(TicketPriority::cases()),
-                'status' => TicketStatus::New,
-            ]);
-        }
-    }
-
-    private function seedTorreNord(User $admin): void
-    {
-        $condominium = Condominium::create([
-            'administrator_id' => $admin->id,
-            'name' => 'Torre Nord',
-            'address' => 'Corso Italia, 55',
-            'city' => 'Ancona',
-            'province' => 'AN',
-            'postal_code' => '60121',
-            'country' => 'IT',
-            'total_units' => 16,
-            'description' => 'Torre residenziale urbana, gestita da un amministratore differente per dimostrare l\'isolamento multi-tenant.',
-        ]);
-
-        $units = collect();
-        for ($floor = 1; $floor <= 8; $floor++) {
-            for ($n = 1; $n <= 2; $n++) {
-                $units->push(Unit::create([
-                    'condominium_id' => $condominium->id,
-                    'code' => sprintf('T%d0%d', $floor, $n),
-                    'floor' => (string) $floor,
-                    'type' => UnitType::Apartment,
-                    'surface_sqm' => fake()->randomFloat(2, 70, 140),
-                ]));
-            }
-        }
-
-        $residents = User::factory()->condomino()->count(6)->create();
-        foreach ($residents as $i => $resident) {
-            $units[$i]->users()->attach($resident->id, ['relationship' => 'owner', 'is_primary' => true]);
-        }
-
-        foreach (range(1, 4) as $i) {
-            $unit = $units->random();
-            $reporter = $unit->users()->first() ?? $residents->random();
-            Ticket::create([
-                'condominium_id' => $condominium->id,
-                'unit_id' => $unit->id,
-                'ticket_category_id' => fake()->randomElement($this->ticketCategories)->id,
-                'created_by' => $reporter->id,
-                'title' => fake()->sentence(6),
-                'description' => fake()->realText(120),
-                'priority' => fake()->randomElement(TicketPriority::cases()),
-                'status' => TicketStatus::New,
             ]);
         }
     }

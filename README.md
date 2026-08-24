@@ -2,7 +2,7 @@
 
 CondoFlow è un micro-SaaS multi-tenant per amministratori di condominio: gestione di condomini, unità immobiliari, condòmini, segnalazioni (ticket), comunicazioni, documenti e fornitori, con un'app mobile-first installabile (PWA) per i condòmini e i custodi.
 
-Il primo ambiente reale di riferimento è **"Parco Marina"**, un condominio fronte mare di 140 appartamenti — ma l'applicazione è progettata fin dal primo giorno per gestire più condomini, ciascuno con i propri utenti, segnalazioni, comunicazioni e documenti, completamente isolati tra loro (multi-tenancy).
+Il primo ambiente reale di riferimento è **"Parco Nuova California"**, un condominio fronte mare di 140 appartamenti — ma l'applicazione è progettata fin dal primo giorno per gestire più condomini, ciascuno con i propri utenti, segnalazioni, comunicazioni e documenti, completamente isolati tra loro (multi-tenancy).
 
 ## Indice
 
@@ -109,14 +109,14 @@ cd backend
 php artisan migrate:fresh --seed
 ```
 
-Il seeder (`database/seeders/DemoSeeder.php`) crea un dataset realistico:
+Il seeder (`database/seeders/DemoSeeder.php`) crea un dataset realistico incentrato su un unico condominio:
 
-- **Parco Marina** — 140 unità (5 scale × 7 piani × 4 unità), 50 condòmini, 2 custodi
-- **Residenza I Pini** — secondo condominio dello stesso amministratore (dimostra la gestione multi-condominio)
-- **Torre Nord** — condominio di un amministratore *diverso*, per verificare concretamente l'isolamento multi-tenant
+- **Parco Nuova California** — 140 unità (5 scale × 7 piani × 4 unità), 50 condòmini, 2 custodi
 - 12 categorie di segnalazione, 7 categorie documentali, 10 fornitori
-- ~50 segnalazioni distribuite su tutti gli stati, con storico, commenti e alcune foto allegate
-- Comunicazioni (a tutto il condominio, per scala, per utenti specifici) e documenti demo
+- ~40 segnalazioni distribuite su tutti gli stati, con storico, commenti e alcune foto allegate
+- Comunicazioni (a tutto il condominio e per scala) e documenti demo
+
+La struttura resta comunque multi-tenant fin dal primo giorno (un amministratore può gestire più condomini, un condomino/custode vede solo i propri) — l'isolamento tra tenant è verificato dalla suite di test automatici (`tests/Feature/MultiTenancy/CrossTenantAccessTest.php`), che costruisce i propri condomini/amministratori isolati indipendentemente dai dati demo.
 
 Nessun dato personale reale è utilizzato: nomi, email e indirizzi sono generati con Faker (locale `it_IT`).
 
@@ -143,11 +143,10 @@ Password comune per tutti gli utenti demo: **`password`**
 
 | Ruolo | Email | Condominio |
 |---|---|---|
-| Amministratore | `admin@condoflow.test` | Parco Marina + Residenza I Pini |
-| Amministratore | `admin2@condoflow.test` | Torre Nord (tenant separato, per testare l'isolamento) |
-| Custode | `custode1@condoflow.test` | Parco Marina |
-| Custode | `custode2@condoflow.test` | Parco Marina |
-| Condomino | `condomino0@condoflow.test` … `condomino49@condoflow.test` | Parco Marina |
+| Amministratore | `admin@condoflow.test` | Parco Nuova California |
+| Custode | `custode1@condoflow.test` | Parco Nuova California |
+| Custode | `custode2@condoflow.test` | Parco Nuova California |
+| Condomino | `condomino0@condoflow.test` … `condomino49@condoflow.test` | Parco Nuova California |
 
 ## Testing
 
