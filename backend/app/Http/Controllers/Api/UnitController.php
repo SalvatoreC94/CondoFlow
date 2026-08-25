@@ -24,6 +24,13 @@ class UnitController extends Controller
             ->with(['building', 'users'])
             ->when($request->filled('building_id'), fn ($q) => $q->where('building_id', $request->integer('building_id')))
             ->when($request->filled('search'), fn ($q) => $q->where('code', 'like', '%'.$request->string('search').'%'))
+            // Group by floor (ground floor "T" first, then numerically) and, within a
+            // floor, by building so units line up by column instead of sorting "code"
+            // as plain text (which puts "T/10" before "T/2").
+            ->orderByRaw("CASE WHEN floor = 'T' THEN 0 ELSE 1 END")
+            ->orderByRaw('LENGTH(floor)')
+            ->orderBy('floor')
+            ->orderBy('building_id')
             ->orderBy('code')
             ->paginate($request->integer('per_page', 50));
 
