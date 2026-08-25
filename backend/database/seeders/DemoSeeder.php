@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Enums\AnnouncementAudience;
 use App\Enums\AnnouncementPriority;
+use App\Enums\SplitMethod;
 use App\Enums\TicketPriority;
 use App\Enums\TicketStatus;
 use App\Enums\UnitType;
@@ -12,6 +13,7 @@ use App\Models\Building;
 use App\Models\Condominium;
 use App\Models\Document;
 use App\Models\DocumentCategory;
+use App\Models\Expense;
 use App\Models\Supplier;
 use App\Models\Ticket;
 use App\Models\TicketCategory;
@@ -19,6 +21,7 @@ use App\Models\TicketComment;
 use App\Models\TicketStatusHistory;
 use App\Models\Unit;
 use App\Models\User;
+use App\Services\InstallmentSplitter;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -143,6 +146,8 @@ class DemoSeeder extends Seeder
             }
         }
 
+        $this->assignMillesimi($units);
+
         // 50 condomini demo, assegnati a unità (alcuni con un secondo intestatario/inquilino).
         $residents = User::factory()->condomino()->count(50)->create()->values();
         foreach ($residents as $i => $resident) {
@@ -151,6 +156,11 @@ class DemoSeeder extends Seeder
                 'password' => bcrypt('password'),
             ]);
         }
+
+        // Un paio di condomini registrati con il solo numero di cellulare
+        // (nessuna email), per dimostrare il login via telefono.
+        $residents[48]->update(['name' => 'Marco Villani', 'email' => null, 'phone' => '+39 333 1234567', 'password' => bcrypt('password')]);
+        $residents[49]->update(['name' => 'Elena Ruggiero', 'email' => null, 'phone' => '+39 333 7654321', 'password' => bcrypt('password')]);
 
         $shuffledUnits = $units->shuffle()->values();
         foreach ($residents as $i => $resident) {
@@ -172,8 +182,70 @@ class DemoSeeder extends Seeder
         $this->seedTickets($condominium, $units, $residents, $caretakers, $suppliers);
         $this->seedAnnouncements($condominium, $admin, $units);
         $this->seedDocuments($condominium, $admin);
+        $this->seedFinances($condominium, $admin, $suppliers);
 
         return $condominium;
+    }
+
+    /**
+     * Distributes 1000 millesimi across the units as evenly as possible,
+     * handing the leftover thousandths (from rounding to 3 decimals) to the
+     * first units, so the total always sums to exactly 1000.000.
+     */
+    private function assignMillesimi($units): void
+    {
+        $count = $units->count();
+        $baseThousandths = intdiv(1000000, $count);
+        $remainder = 1000000 - $baseThousandths * $count;
+
+        foreach ($units as $i => $unit) {
+            $thousandths = $baseThousandths + ($i < $remainder ? 1 : 0);
+            $unit->update(['millesimi' => number_format($thousandths / 1000, 3, '.', '')]);
+        }
+    }
+
+    private function seedFinances(Condominium $condominium, User $admin, $suppliers): void
+    {
+        $categories = ['Manutenzione ordinaria', 'Pulizie', 'Giardinaggio', 'Utenze', 'Assicurazione', 'Amministrazione'];
+
+        foreach (range(1, 15) as $__) {
+            Expense::create([
+                'condominium_id' => $condominium->id,
+                'supplier_id' => fake()->optional(0.7)->randomElement($suppliers)?->id,
+                'created_by' => $admin->id,
+                'category' => fake()->randomElement($categories),
+                'description' => fake()->sentence(6),
+                'amount' => fake()->randomFloat(2, 80, 3500),
+                'expense_date' => fake()->dateTimeBetween('-6 months', 'now'),
+                'notes' => fake()->optional()->sentence(),
+            ]);
+        }
+
+        $splitter = app(InstallmentSplitter::class);
+
+        $installments = [
+            ['title' => 'Rata ordinaria I trimestre 2026', 'total_amount' => 24000, 'due_date' => now()->subMonths(4), 'method' => SplitMethod::Millesimi],
+            ['title' => 'Rata ordinaria II trimestre 2026', 'total_amount' => 24000, 'due_date' => now()->subMonth(), 'method' => SplitMethod::Millesimi],
+            ['title' => 'Rata straordinaria manutenzione ascensori', 'total_amount' => 13500, 'due_date' => now()->addMonth(), 'method' => SplitMethod::Equal],
+        ];
+
+        foreach ($installments as $data) {
+            $installment = $splitter->create($condominium, $admin, [
+                'title' => $data['title'],
+                'description' => null,
+                'total_amount' => $data['total_amount'],
+                'split_method' => $data['method']->value,
+                'due_date' => $data['due_date'],
+            ]);
+
+            // Quote più "vecchie" prevalentemente pagate, quelle più recenti in gran parte da pagare.
+            $paidRate = $data['due_date']->isPast() ? 85 : 10;
+            foreach ($installment->charges as $charge) {
+                if (fake()->boolean($paidRate)) {
+                    $charge->update(['paid' => true, 'paid_at' => fake()->dateTimeBetween('-3 months', 'now')]);
+                }
+            }
+        }
     }
 
     private function seedTickets($condominium, $units, $residents, $caretakers, $suppliers): void

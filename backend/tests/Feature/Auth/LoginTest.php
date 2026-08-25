@@ -6,7 +6,7 @@ it('logs in with valid credentials', function () {
     $user = User::factory()->condomino()->create(['password' => bcrypt('correct-password')]);
 
     $response = $this->postJson('/api/login', [
-        'email' => $user->email,
+        'identifier' => $user->email,
         'password' => 'correct-password',
     ]);
 
@@ -18,7 +18,7 @@ it('rejects invalid credentials', function () {
     $user = User::factory()->condomino()->create(['password' => bcrypt('correct-password')]);
 
     $response = $this->postJson('/api/login', [
-        'email' => $user->email,
+        'identifier' => $user->email,
         'password' => 'wrong-password',
     ]);
 
@@ -30,7 +30,7 @@ it('rejects login for a user who has not accepted their invitation yet', functio
     $user = User::factory()->condomino()->invited()->create();
 
     $response = $this->postJson('/api/login', [
-        'email' => $user->email,
+        'identifier' => $user->email,
         'password' => 'password',
     ]);
 

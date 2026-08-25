@@ -21,6 +21,7 @@ class Unit extends Model
         'floor',
         'type',
         'surface_sqm',
+        'millesimi',
         'notes',
     ];
 
@@ -29,6 +30,7 @@ class Unit extends Model
         return [
             'type' => UnitType::class,
             'surface_sqm' => 'decimal:2',
+            'millesimi' => 'decimal:3',
         ];
     }
 
@@ -52,5 +54,10 @@ class Unit extends Model
     public function tickets(): HasMany
     {
         return $this->hasMany(Ticket::class);
+    }
+
+    public function installmentCharges(): HasMany
+    {
+        return $this->hasMany(InstallmentCharge::class);
     }
 }

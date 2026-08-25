@@ -48,7 +48,23 @@ Building (scala/edificio)
 Unit
   ├─ belongsTo Condominium
   ├─ belongsTo Building (nullable)
-  └─ belongsToMany User (residenti, via unit_user)
+  ├─ millesimi (decimal, nullable — quota di proprietà su 1000, usata per la ripartizione delle rate)
+  ├─ belongsToMany User (residenti, via unit_user)
+  └─ hasMany InstallmentCharge
+
+Expense (spesa condominiale)
+  ├─ belongsTo Condominium, Supplier (nullable)
+  └─ belongsTo User (creator: created_by)
+
+Installment (rata condominiale)
+  ├─ belongsTo Condominium
+  ├─ belongsTo User (creator: created_by)
+  ├─ split_method: millesimi | equal
+  └─ hasMany InstallmentCharge (una per unità, generata automaticamente alla creazione)
+
+InstallmentCharge (quota di una rata per una singola unità)
+  ├─ belongsTo Installment, Unit
+  └─ paid, paid_at (segnata manualmente dall'amministratore — nessuna integrazione di pagamento online nell'MVP)
 
 Ticket (segnalazione)
   ├─ belongsTo Condominium, Unit (nullable), TicketCategory
@@ -80,7 +96,7 @@ AuditLog — log applicativo per le operazioni sensibili (login, inviti, modific
 
 ### Enum applicativi (`app/Enums`)
 
-`UserRole`, `UserStatus`, `UnitType`, `UnitUserRelationship`, `TicketPriority`, `TicketStatus`, `AnnouncementPriority`, `AnnouncementAudience`, `DocumentVisibility`. `TicketStatus` incapsula anche la macchina a stati (`allowedTransitions()`), così un ticket non può mai saltare da `new` a `resolved` senza passare dagli stati intermedi.
+`UserRole`, `UserStatus`, `UnitType`, `UnitUserRelationship`, `TicketPriority`, `TicketStatus`, `AnnouncementPriority`, `AnnouncementAudience`, `DocumentVisibility`, `SplitMethod` (millesimi | equal, per la ripartizione delle rate). `TicketStatus` incapsula anche la macchina a stati (`allowedTransitions()`), così un ticket non può mai saltare da `new` a `resolved` senza passare dagli stati intermedi.
 
 ### Migrations
 
@@ -104,13 +120,18 @@ Questa logica è centralizzata in `App\Policies\Concerns\ChecksCondominiumAccess
 
 Laravel Sanctum in modalità **SPA (cookie/sessione)**, non token bearer: la SPA e l'API condividono lo stesso dominio "stateful" (in sviluppo tramite il proxy di Vite, in produzione tramite `SANCTUM_STATEFUL_DOMAINS`/CORS), il login imposta un cookie di sessione HttpOnly e ogni richiesta successiva è autenticata automaticamente, con protezione CSRF (`X-XSRF-TOKEN`) gestita da Axios.
 
+**Login via email o cellulare:** `users.email` è nullable e `users.phone` è univoco; `POST /api/login` accetta un campo `identifier` (email o numero di cellulare) invece di un campo `email` fisso — `AuthController@login` risolve l'utente con `WHERE email = ? OR phone = ?` e verifica la password con `Hash::check` (bypassando `Auth::attempt`, che conosce solo una colonna fissa). Nessuna verifica SMS/OTP è implementata: il numero di cellulare è un identificativo alternativo all'email, non un fattore verificato.
+
 Flusso di onboarding (nessuna registrazione libera):
 
 ```
 Amministratore invita un utente (POST /condominiums/{id}/invitations)
+        │  email o phone (almeno uno dei due, richiesto in mutua esclusione)
         │  crea User con status=invited + invitation_token (scade in 7 giorni)
         │  associa l'utente all'unità (condomino) o al condominio (custode)
-        │  invia email con link verso /accetta-invito/{token}
+        │  se ha un'email → invia email con link verso /accetta-invito/{token}
+        │  altrimenti → l'endpoint restituisce invitation_url in risposta,
+        │    che l'amministratore condivide manualmente (SMS, WhatsApp…)
         ▼
 Utente apre il link, imposta la password (POST /invitations/{token}/accept)
         │  status → active, invitation_token → null
@@ -119,7 +140,7 @@ Utente apre il link, imposta la password (POST /invitations/{token}/accept)
 L'utente vede solo il proprio condominio/le proprie unità
 ```
 
-Password reset standard di Laravel (`/forgot-password`, `/reset-password`), con link email che punta al frontend (`ResetPassword::createUrlUsing` in `AppServiceProvider`).
+Password reset standard di Laravel (`/forgot-password`, `/reset-password`), con link email che punta al frontend (`ResetPassword::createUrlUsing` in `AppServiceProvider`) — disponibile solo per gli utenti con un'email registrata.
 
 ## Autorizzazione
 
@@ -146,10 +167,15 @@ Tutte le rotte sono sotto `/api`, protette da `auth:sanctum` (eccetto login, inv
 | Comunicazioni | `apiResource /announcements`, `POST /announcements/{id}/read` |
 | Documenti | `GET/POST /documents`, `GET /documents/{id}/download` (streaming autenticato) |
 | Fornitori | `apiResource /suppliers`, contatti |
+| Contabilità | `GET/POST /condominiums/{id}/expenses`, `PUT/DELETE /expenses/{id}`, `GET/POST /condominiums/{id}/installments`, `GET/DELETE /installments/{id}`, `PATCH /installment-charges/{id}` (segna pagata/da pagare), `GET /me/charges` (le quote del condomino autenticato) |
 | Dashboard | `GET /dashboard/stats` (statistiche reali, filtrabili per condominio/periodo) |
 | Notifiche | `GET /notifications`, mark as read |
 
 Le risposte usano API Resource dedicate (`app/Http/Resources`) — mai i model Eloquent esposti direttamente — e la paginazione usa il formato standard di Laravel (`AnonymousResourceCollection` su query paginate).
+
+### Contabilità
+
+`App\Services\InstallmentSplitter` calcola la ripartizione di una rata (`Installment`) tra le unità di un condominio e crea le `InstallmentCharge` corrispondenti in un'unica transazione. Per evitare i classici errori di arrotondamento in virgola mobile sul denaro, la ripartizione lavora sempre in **centesimi interi** con il metodo del resto più grande (*largest-remainder method*): ogni quota viene arrotondata per difetto, poi i centesimi mancanti vengono assegnati uno a uno alle unità con la parte frazionaria più alta — così la somma delle quote coincide sempre esattamente con l'importo totale della rata, mai un centesimo perso o in eccesso. La ripartizione `millesimi` richiede che tutte le unità del condominio abbiano `millesimi` impostato (altrimenti la richiesta è rifiutata con un messaggio esplicito); la ripartizione `equal` divide l'importo in parti uguali indipendentemente dai millesimi. Solo l'amministratore del condominio può gestire spese/rate e segnare le quote come pagate (`CondominiumPolicy@manageFinances`); un condomino vede solo le quote delle proprie unità (`GET /me/charges`).
 
 ### Upload e download file
 
@@ -176,10 +202,11 @@ Nessuna chiamata a servizi AI esterni avviene nell'MVP. `ANTHROPIC_API_KEY` è p
 - Gestione assemblee/verbali → nuova entità collegata a `Condominium`, riusa `Document` per i verbali
 - Calendario manutenzioni/scadenze → estensione naturale di `Intervention`
 - Contratti fornitori → nuova entità collegata a `Supplier`
-- Gestione spese/pagamenti, integrazione Stripe, piani SaaS (Starter/Professional/Studio) → il modello `Condominium.administrator_id` è già il punto di aggancio naturale per il billing per amministratore
-- Integrazione WhatsApp Business / push notification → nuovi canali su `App\Notifications`, che già astraggono il canale di invio
+- Pagamenti online delle rate (Stripe) e piani SaaS (Starter/Professional/Studio) → la ripartizione spese/rate (`Expense`/`Installment`/`InstallmentCharge`) e il modello `Condominium.administrator_id` sono già i punti di aggancio naturali; oggi le quote sono segnate come pagate manualmente dall'amministratore
+- Verifica SMS/OTP del numero di cellulare, invio automatico dell'invito via SMS/WhatsApp Business → il campo `users.phone` e il flusso di invito già lo prevedono come identificativo; manca solo l'integrazione con un provider (es. Twilio) per l'invio automatico e la verifica
+- Push notification browser → nuovo canale su `App\Notifications`, che già astrae il canale di invio
 - Custom branding per amministratore → colonna su `Condominium` o nuova tabella `administrator_settings`
 - Analytics avanzati → i dati sono già normalizzati (`ticket_status_history`, `interventions`) per costruire report storici senza modifiche allo schema
 - AI assistant / ricerca documentale RAG → vedi sezione [AI](#ai)
 
-**Non implementato nell'MVP per scelta esplicita** (P2, per non compromettere la stabilità di P0/P1): analytics avanzati, integrazioni esterne, billing.
+**Non implementato nell'MVP per scelta esplicita** (P2, per non compromettere la stabilità di P0/P1): analytics avanzati, integrazioni esterne, pagamenti online.

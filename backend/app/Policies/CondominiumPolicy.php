@@ -40,4 +40,9 @@ class CondominiumPolicy
     {
         return $this->administers($user, $condominium->id);
     }
+
+    public function manageFinances(User $user, Condominium $condominium): bool
+    {
+        return $this->administers($user, $condominium->id);
+    }
 }

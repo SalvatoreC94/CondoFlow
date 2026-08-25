@@ -1,8 +1,8 @@
 # CondoFlow
 
-CondoFlow è un micro-SaaS multi-tenant per amministratori di condominio: gestione di condomini, unità immobiliari, condòmini, segnalazioni (ticket), comunicazioni, documenti e fornitori, con un'app mobile-first installabile (PWA) per i condòmini e i custodi.
+CondoFlow è un micro-SaaS multi-tenant per amministratori di condominio: gestione di condomini, unità immobiliari, condòmini, segnalazioni (ticket), comunicazioni, documenti, fornitori e contabilità (spese e rate condominiali), con un'app mobile-first installabile (PWA) per i condòmini e i custodi. La registrazione e il login funzionano sia via email sia con il solo numero di cellulare.
 
-Il primo ambiente reale di riferimento è **"Parco Nuova California"**, un condominio fronte mare di 140 appartamenti — ma l'applicazione è progettata fin dal primo giorno per gestire più condomini, ciascuno con i propri utenti, segnalazioni, comunicazioni e documenti, completamente isolati tra loro (multi-tenancy).
+Il primo ambiente reale di riferimento è **"Parco Nuova California"**, un condominio fronte mare di 135 unità (45 colonne su 3 piani) — ma l'applicazione è progettata fin dal primo giorno per gestire più condomini, ciascuno con i propri utenti, segnalazioni, comunicazioni, documenti e contabilità, completamente isolati tra loro (multi-tenancy).
 
 ## Indice
 
@@ -22,8 +22,8 @@ Il primo ambiente reale di riferimento è **"Parco Nuova California"**, un condo
 ## Stack tecnologico
 
 **Backend**
-- Laravel 12 / PHP 8.4
-- Laravel Sanctum (autenticazione SPA basata su sessione/cookie)
+- Laravel 12 / PHP 8.3
+- Laravel Sanctum (autenticazione SPA basata su sessione/cookie, login via email o numero di cellulare)
 - MySQL in produzione, SQLite per sviluppo/test (nessun servizio esterno richiesto)
 - Laravel Notifications (in-app + email), Queue pronte all'uso (`QUEUE_CONNECTION=database`)
 - Pest per i test
@@ -111,10 +111,12 @@ php artisan migrate:fresh --seed
 
 Il seeder (`database/seeders/DemoSeeder.php`) crea un dataset realistico incentrato su un unico condominio:
 
-- **Parco Nuova California** — 140 unità (5 scale × 7 piani × 4 unità), 50 condòmini, 2 custodi
+- **Parco Nuova California** — 135 unità organizzate in 45 colonne (una per numero civico) × 3 piani (terra, primo, secondo), 50 condòmini, 2 custodi
 - 12 categorie di segnalazione, 7 categorie documentali, 10 fornitori
 - ~40 segnalazioni distribuite su tutti gli stati, con storico, commenti e alcune foto allegate
 - Comunicazioni (a tutto il condominio e per scala) e documenti demo
+- Millesimi assegnati a ogni unità, 15 spese e 3 rate condominiali (ripartite per millesimi o in parti uguali), con quote in parte già segnate come pagate
+- 2 condòmini demo registrati con il solo numero di cellulare (nessuna email), per testare il login via telefono
 
 La struttura resta comunque multi-tenant fin dal primo giorno (un amministratore può gestire più condomini, un condomino/custode vede solo i propri) — l'isolamento tra tenant è verificato dalla suite di test automatici (`tests/Feature/MultiTenancy/CrossTenantAccessTest.php`), che costruisce i propri condomini/amministratori isolati indipendentemente dai dati demo.
 
@@ -141,12 +143,16 @@ Apri **http://localhost:5173**. Il dev server di Vite proxya automaticamente `/a
 
 Password comune per tutti gli utenti demo: **`password`**
 
-| Ruolo | Email | Condominio |
+| Ruolo | Email / Cellulare | Condominio |
 |---|---|---|
 | Amministratore | `admin@condoflow.test` | Parco Nuova California |
 | Custode | `custode1@condoflow.test` | Parco Nuova California |
 | Custode | `custode2@condoflow.test` | Parco Nuova California |
 | Condomino | `condomino0@condoflow.test` … `condomino49@condoflow.test` | Parco Nuova California |
+| Condomino (solo cellulare, nessuna email) | `+39 333 1234567` | Parco Nuova California |
+| Condomino (solo cellulare, nessuna email) | `+39 333 7654321` | Parco Nuova California |
+
+Il campo "Email o numero di cellulare" nella schermata di login accetta entrambi i formati.
 
 ## Testing
 
@@ -159,7 +165,7 @@ php artisan test
 ./vendor/bin/pest
 ```
 
-La suite copre autenticazione, inviti, **multi-tenancy e protezione da IDOR** (accesso cross-tenant tramite manipolazione di ID nelle richieste API), ciclo di vita delle segnalazioni (creazione, transizioni di stato, commenti interni/pubblici, allegati), visibilità delle comunicazioni per pubblico, visibilità dei documenti per ruolo, assegnazione fornitori/interventi.
+La suite copre autenticazione (via email o cellulare), inviti (via email o solo cellulare), **multi-tenancy e protezione da IDOR** (accesso cross-tenant tramite manipolazione di ID nelle richieste API, incluse spese/rate), ciclo di vita delle segnalazioni (creazione, transizioni di stato, commenti interni/pubblici, allegati), visibilità delle comunicazioni per pubblico, visibilità dei documenti per ruolo, assegnazione fornitori/interventi, contabilità (ripartizione millesimale/in parti uguali con arrotondamento esatto, autorizzazioni, stato pagamenti).
 
 ### Frontend
 

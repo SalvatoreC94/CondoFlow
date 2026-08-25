@@ -33,6 +33,7 @@ const unitForm = ref({
   type: "apartment",
   building_id: "",
   surface_sqm: "",
+  millesimi: "",
 });
 const unitErrors = ref({});
 const savingUnit = ref(false);
@@ -41,12 +42,19 @@ const inviteModalOpen = ref(false);
 const inviteForm = ref({
   name: "",
   email: "",
+  phone: "",
   role: "condomino",
   unit_id: "",
   relationship: "owner",
 });
 const inviteErrors = ref({});
 const sendingInvite = ref(false);
+const invitationLink = ref("");
+
+async function copyInvitationLink() {
+  await navigator.clipboard.writeText(invitationLink.value);
+  toast.success("Link copiato.");
+}
 
 async function load() {
   loading.value = true;
@@ -83,6 +91,7 @@ async function createUnit() {
       type: "apartment",
       building_id: "",
       surface_sqm: "",
+      millesimi: "",
     };
     toast.success("Unità creata.");
     await load();
@@ -97,7 +106,7 @@ async function sendInvite() {
   sendingInvite.value = true;
   inviteErrors.value = {};
   try {
-    await api.post(
+    const { data } = await api.post(
       `/api/condominiums/${condominiumId}/invitations`,
       inviteForm.value,
     );
@@ -105,11 +114,18 @@ async function sendInvite() {
     inviteForm.value = {
       name: "",
       email: "",
+      phone: "",
       role: "condomino",
       unit_id: "",
       relationship: "owner",
     };
-    toast.success("Invito inviato.");
+    if (data.invitation_url) {
+      // No email on file: hand the link to the admin to share themselves
+      // (SMS, WhatsApp…) instead of the usual "invito inviato" toast.
+      invitationLink.value = data.invitation_url;
+    } else {
+      toast.success("Invito inviato.");
+    }
     await load();
   } catch (error) {
     inviteErrors.value = parseApiError(error).errors;
@@ -205,6 +221,7 @@ const unitTypeOptions = [
                 <p class="text-xs text-slate-500">
                   {{ u.type_label }}
                   <span v-if="u.building"> · {{ u.building.name }}</span>
+                  <span v-if="u.millesimi"> · {{ u.millesimi }}‰</span>
                 </p>
                 <p class="mt-2 text-xs text-slate-600">
                   <span v-if="u.residents?.length">{{
@@ -305,6 +322,12 @@ const unitTypeOptions = [
               type="number"
             />
           </div>
+          <TextField
+            v-model="unitForm.millesimi"
+            label="Millesimi (opzionale, su 1000)"
+            type="number"
+            :error="unitErrors.millesimi?.[0]"
+          />
           <Button type="submit" block :loading="savingUnit">Crea unità</Button>
         </form>
       </Modal>
@@ -324,9 +347,13 @@ const unitTypeOptions = [
           <TextField
             v-model="inviteForm.email"
             type="email"
-            label="Email"
-            required
+            label="Email (opzionale se si indica il cellulare)"
             :error="inviteErrors.email?.[0]"
+          />
+          <TextField
+            v-model="inviteForm.phone"
+            label="Cellulare (opzionale se si indica l'email)"
+            :error="inviteErrors.phone?.[0]"
           />
           <SelectField
             v-model="inviteForm.role"
@@ -356,6 +383,26 @@ const unitTypeOptions = [
             >Invia invito</Button
           >
         </form>
+      </Modal>
+
+      <Modal
+        :open="!!invitationLink"
+        title="Invito creato"
+        @close="invitationLink = ''"
+      >
+        <p class="mb-3 text-sm text-slate-600">
+          Non è stata indicata un'email: condividi questo link con la persona
+          invitata (SMS, WhatsApp…) per farle impostare la password.
+        </p>
+        <div class="flex gap-2">
+          <input
+            readonly
+            :value="invitationLink"
+            class="w-full flex-1 rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700"
+            @click="$event.target.select()"
+          />
+          <Button size="sm" @click="copyInvitationLink">Copia</Button>
+        </div>
       </Modal>
     </template>
   </div>

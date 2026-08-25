@@ -14,6 +14,7 @@ use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -22,16 +23,21 @@ class AuthController extends Controller
 {
     public function login(LoginRequest $request): JsonResponse
     {
-        $credentials = $request->validated();
+        $identifier = $request->validated('identifier');
 
-        $user = User::where('email', $credentials['email'])->first();
+        // The identifier can be either an email address or a phone number,
+        // so the user is looked up manually (rather than via Auth::attempt,
+        // which only knows how to match a single fixed column) and logged
+        // in directly once the password checks out.
+        $user = User::where('email', $identifier)->orWhere('phone', $identifier)->first();
 
-        if (! $user || $user->status !== UserStatus::Active || ! Auth::attempt($credentials)) {
+        if (! $user || $user->status !== UserStatus::Active || ! Hash::check($request->validated('password'), $user->password)) {
             throw ValidationException::withMessages([
-                'email' => ['Le credenziali fornite non sono corrette.'],
+                'identifier' => ['Le credenziali fornite non sono corrette.'],
             ]);
         }
 
+        Auth::login($user);
         $request->session()->regenerate();
 
         AuditLog::record('auth.login', $user);

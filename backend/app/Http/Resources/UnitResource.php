@@ -19,6 +19,7 @@ class UnitResource extends JsonResource
             'type' => $this->type->value,
             'type_label' => $this->type->label(),
             'surface_sqm' => $this->surface_sqm,
+            'millesimi' => $this->millesimi,
             'notes' => $this->notes,
             'residents' => UserResource::collection($this->whenLoaded('users')),
         ];

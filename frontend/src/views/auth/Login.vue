@@ -10,7 +10,7 @@ import { useAuthStore } from "@/stores/auth";
 const auth = useAuthStore();
 const router = useRouter();
 
-const form = ref({ email: "", password: "" });
+const form = ref({ identifier: "", password: "" });
 const errors = ref({});
 const generalError = ref("");
 const loading = ref(false);
@@ -58,12 +58,12 @@ async function submit() {
         </p>
 
         <TextField
-          v-model="form.email"
-          type="email"
-          label="Email"
+          v-model="form.identifier"
+          type="text"
+          label="Email o numero di cellulare"
           autocomplete="username"
           required
-          :error="errors.email?.[0]"
+          :error="errors.identifier?.[0]"
         />
         <TextField
           v-model="form.password"

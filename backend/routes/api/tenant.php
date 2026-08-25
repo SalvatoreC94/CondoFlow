@@ -7,6 +7,9 @@ use App\Http\Controllers\Api\CondominiumUserController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DocumentCategoryController;
 use App\Http\Controllers\Api\DocumentController;
+use App\Http\Controllers\Api\ExpenseController;
+use App\Http\Controllers\Api\InstallmentChargeController;
+use App\Http\Controllers\Api\InstallmentController;
 use App\Http\Controllers\Api\InterventionController;
 use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\NotificationController;
@@ -74,6 +77,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('suppliers', SupplierController::class);
     Route::post('suppliers/{supplier}/contacts', [SupplierContactController::class, 'store']);
     Route::delete('suppliers/{supplier}/contacts/{contact}', [SupplierContactController::class, 'destroy']);
+
+    // Contabilità: spese e rate condominiali
+    Route::get('condominiums/{condominium}/expenses', [ExpenseController::class, 'index']);
+    Route::post('condominiums/{condominium}/expenses', [ExpenseController::class, 'store']);
+    Route::put('expenses/{expense}', [ExpenseController::class, 'update']);
+    Route::delete('expenses/{expense}', [ExpenseController::class, 'destroy']);
+
+    Route::get('condominiums/{condominium}/installments', [InstallmentController::class, 'index']);
+    Route::post('condominiums/{condominium}/installments', [InstallmentController::class, 'store']);
+    Route::get('installments/{installment}', [InstallmentController::class, 'show']);
+    Route::delete('installments/{installment}', [InstallmentController::class, 'destroy']);
+
+    Route::get('me/charges', [InstallmentChargeController::class, 'mine']);
+    Route::patch('installment-charges/{installmentCharge}', [InstallmentChargeController::class, 'update']);
 
     // Dashboard
     Route::get('dashboard/stats', [DashboardController::class, 'stats']);

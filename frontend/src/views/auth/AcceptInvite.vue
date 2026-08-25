@@ -94,7 +94,10 @@ async function submit() {
         <p class="text-sm text-slate-600">
           Ciao <strong>{{ invite.name }}</strong
           >, imposta una password per completare la registrazione con
-          l'indirizzo <strong>{{ invite.email }}</strong
+          <template v-if="invite.email">
+            l'indirizzo <strong>{{ invite.email }}</strong></template
+          ><template v-else>
+            il numero <strong>{{ invite.phone }}</strong></template
           >.
         </p>
 
