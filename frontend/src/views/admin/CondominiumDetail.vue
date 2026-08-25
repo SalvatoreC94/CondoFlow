@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 
 import Avatar from "@/components/ui/Avatar.vue";
@@ -118,6 +118,22 @@ async function sendInvite() {
   }
 }
 
+const groupedUnits = computed(() => {
+  const groups = new Map();
+  for (const u of units.value) {
+    const key = u.floor || "—";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(u);
+  }
+  return Array.from(groups, ([floor, items]) => ({ floor, items }));
+});
+
+function floorLabel(floor) {
+  if (floor === "T") return "Piano terra";
+  if (floor === "—") return "Piano non specificato";
+  return `Piano ${floor}`;
+}
+
 const unitTypeOptions = [
   { value: "apartment", label: "Appartamento" },
   { value: "garage", label: "Box auto" },
@@ -176,21 +192,31 @@ const unitTypeOptions = [
           title="Nessuna unità"
           description="Aggiungi la prima unità immobiliare."
         />
-        <div v-else class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          <Card v-for="u in units" :key="u.id">
-            <p class="font-semibold text-slate-900">{{ u.code }}</p>
-            <p class="text-xs text-slate-500">
-              {{ u.type_label }} · Piano {{ u.floor || "—" }}
-            </p>
-            <p class="mt-2 text-xs text-slate-600">
-              <span v-if="u.residents?.length">{{
-                u.residents.map((r) => r.name).join(", ")
-              }}</span>
-              <span v-else class="text-slate-400"
-                >Nessun residente collegato</span
-              >
-            </p>
-          </Card>
+        <div v-else class="space-y-5">
+          <div v-for="group in groupedUnits" :key="group.floor">
+            <h3
+              class="mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase"
+            >
+              {{ floorLabel(group.floor) }} ({{ group.items.length }})
+            </h3>
+            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <Card v-for="u in group.items" :key="u.id">
+                <p class="font-semibold text-slate-900">{{ u.code }}</p>
+                <p class="text-xs text-slate-500">
+                  {{ u.type_label }}
+                  <span v-if="u.building"> · {{ u.building.name }}</span>
+                </p>
+                <p class="mt-2 text-xs text-slate-600">
+                  <span v-if="u.residents?.length">{{
+                    u.residents.map((r) => r.name).join(", ")
+                  }}</span>
+                  <span v-else class="text-slate-400"
+                    >Nessun residente collegato</span
+                  >
+                </p>
+              </Card>
+            </div>
+          </div>
         </div>
       </div>
 
