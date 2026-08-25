@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AnnouncementController;
+use App\Http\Controllers\Api\AssemblyController;
 use App\Http\Controllers\Api\BuildingController;
 use App\Http\Controllers\Api\CondominiumController;
 use App\Http\Controllers\Api\CondominiumUserController;
@@ -13,6 +14,7 @@ use App\Http\Controllers\Api\InstallmentController;
 use App\Http\Controllers\Api\InterventionController;
 use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Controllers\Api\SupplierContactController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\TicketAttachmentController;
@@ -92,6 +94,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('me/charges', [InstallmentChargeController::class, 'mine']);
     Route::patch('installment-charges/{installmentCharge}', [InstallmentChargeController::class, 'update']);
 
+    // Assemblee
+    Route::get('assemblies', [AssemblyController::class, 'index']);
+    Route::post('assemblies', [AssemblyController::class, 'store']);
+    Route::get('assemblies/{assembly}', [AssemblyController::class, 'show']);
+    Route::put('assemblies/{assembly}', [AssemblyController::class, 'update']);
+    Route::delete('assemblies/{assembly}', [AssemblyController::class, 'destroy']);
+    Route::post('assemblies/{assembly}/resolutions', [AssemblyController::class, 'storeResolution']);
+    Route::delete('assembly-resolutions/{resolution}', [AssemblyController::class, 'destroyResolution']);
+    Route::post('assemblies/{assembly}/minutes', [AssemblyController::class, 'storeMinutes']);
+
     // Dashboard
     Route::get('dashboard/stats', [DashboardController::class, 'stats']);
 
@@ -99,4 +111,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('notifications', [NotificationController::class, 'index']);
     Route::patch('notifications/{notification}/read', [NotificationController::class, 'markRead']);
     Route::post('notifications/read-all', [NotificationController::class, 'markAllRead']);
+
+    // Notifiche push (Web Push)
+    Route::get('push/vapid-public-key', [PushSubscriptionController::class, 'vapidPublicKey']);
+    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store']);
+    Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy']);
 });

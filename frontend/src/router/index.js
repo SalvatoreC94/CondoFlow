@@ -73,6 +73,17 @@ const routes = [
         component: () => import("@/views/condomino/Finance.vue"),
       },
       {
+        path: "assemblee",
+        name: "condomino.assemblies",
+        component: () => import("@/views/condomino/Assemblies.vue"),
+      },
+      {
+        path: "assemblee/:id",
+        name: "condomino.assembly-detail",
+        component: () => import("@/views/condomino/AssemblyDetail.vue"),
+        props: true,
+      },
+      {
         path: "profilo",
         name: "condomino.profile",
         component: () => import("@/views/condomino/Profile.vue"),
@@ -127,6 +138,17 @@ const routes = [
         path: "contabilita",
         name: "admin.finance",
         component: () => import("@/views/admin/Finance.vue"),
+      },
+      {
+        path: "assemblee",
+        name: "admin.assemblies",
+        component: () => import("@/views/admin/Assemblies.vue"),
+      },
+      {
+        path: "assemblee/:id",
+        name: "admin.assembly-detail",
+        component: () => import("@/views/admin/AssemblyDetail.vue"),
+        props: true,
       },
       {
         path: "documenti",

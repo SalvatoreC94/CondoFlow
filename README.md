@@ -1,6 +1,6 @@
 # CondoFlow
 
-CondoFlow è un micro-SaaS multi-tenant per amministratori di condominio: gestione di condomini, unità immobiliari, condòmini, segnalazioni (ticket), comunicazioni, documenti, fornitori e contabilità (spese e rate condominiali), con un'app mobile-first installabile (PWA) per i condòmini e i custodi. La registrazione e il login funzionano sia via email sia con il solo numero di cellulare.
+CondoFlow è un micro-SaaS multi-tenant per amministratori di condominio: gestione di condomini, unità immobiliari, condòmini, segnalazioni (ticket), comunicazioni, documenti, fornitori, contabilità (spese e rate condominiali) e assemblee (convocazioni, delibere, verbali), con un'app mobile-first installabile (PWA) per i condòmini e i custodi, con notifiche push oltre a quelle in-app/email. La registrazione e il login funzionano sia via email sia con il solo numero di cellulare.
 
 Il primo ambiente reale di riferimento è **"Parco Nuova California"**, un condominio fronte mare di 135 unità (45 colonne su 3 piani) — ma l'applicazione è progettata fin dal primo giorno per gestire più condomini, ciascuno con i propri utenti, segnalazioni, comunicazioni, documenti e contabilità, completamente isolati tra loro (multi-tenancy).
 
@@ -25,7 +25,7 @@ Il primo ambiente reale di riferimento è **"Parco Nuova California"**, un condo
 - Laravel 12 / PHP 8.3
 - Laravel Sanctum (autenticazione SPA basata su sessione/cookie, login via email o numero di cellulare)
 - MySQL in produzione, SQLite per sviluppo/test (nessun servizio esterno richiesto)
-- Laravel Notifications (in-app + email), Queue pronte all'uso (`QUEUE_CONNECTION=database`)
+- Laravel Notifications (in-app, email, push via Web Push/VAPID), Queue pronte all'uso (`QUEUE_CONNECTION=database`)
 - Pest per i test
 
 **Frontend**
@@ -45,6 +45,7 @@ CondoFlow/
 ## Requisiti
 
 - PHP >= 8.3 con estensioni `pdo_sqlite` (o `pdo_mysql` in produzione), `gd`, `fileinfo`, `mbstring`
+  - `bcmath` o `gmp` opzionali ma consigliate: senza nessuna delle due, le notifiche push restano funzionanti ma scrivono un avviso di performance nel log a ogni invio
 - Composer 2
 - Node.js >= 20 e npm
 - MySQL 8 (consigliato in produzione) — non necessario in locale, si usa SQLite
@@ -62,6 +63,7 @@ composer install
 php artisan key:generate
 touch database/database.sqlite   # solo se si usa SQLite (default di sviluppo)
 php artisan migrate --seed
+php artisan webpush:vapid        # genera le chiavi per le notifiche push (facoltativo)
 
 # Frontend
 cd ../frontend
@@ -81,6 +83,7 @@ Variabili principali (vedi `backend/.env.example` per l'elenco completo):
 | `FRONTEND_URL` | Origine della SPA (es. `http://localhost:5173`), usata per i link nelle email e per Sanctum |
 | `SANCTUM_STATEFUL_DOMAINS` | Domini autorizzati all'autenticazione via cookie/sessione |
 | `MAIL_MAILER` | `log` in sviluppo (le email vengono scritte nel log invece di essere inviate) |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Chiavi per le notifiche push (Web Push) — generale con `php artisan webpush:vapid`; se vuote il canale push non invia nulla, senza errori |
 | `ANTHROPIC_API_KEY` | Opzionale, per le funzionalità AI future (vedi [ARCHITECTURE.md](ARCHITECTURE.md#ai)) — se vuota, nessuna feature AI è attiva |
 
 **Passare a MySQL in produzione:**
@@ -116,6 +119,7 @@ Il seeder (`database/seeders/DemoSeeder.php`) crea un dataset realistico incentr
 - ~40 segnalazioni distribuite su tutti gli stati, con storico, commenti e alcune foto allegate
 - Comunicazioni (a tutto il condominio e per scala) e documenti demo
 - Millesimi assegnati a ogni unità, 15 spese e 3 rate condominiali (ripartite per millesimi o in parti uguali), con quote in parte già segnate come pagate
+- 3 assemblee demo (due svolte con delibere e verbale/senza verbale, una convocata nel prossimo mese)
 - 2 condòmini demo registrati con il solo numero di cellulare (nessuna email), per testare il login via telefono
 
 La struttura resta comunque multi-tenant fin dal primo giorno (un amministratore può gestire più condomini, un condomino/custode vede solo i propri) — l'isolamento tra tenant è verificato dalla suite di test automatici (`tests/Feature/MultiTenancy/CrossTenantAccessTest.php`), che costruisce i propri condomini/amministratori isolati indipendentemente dai dati demo.
@@ -165,7 +169,7 @@ php artisan test
 ./vendor/bin/pest
 ```
 
-La suite copre autenticazione (via email o cellulare), inviti (via email o solo cellulare), **multi-tenancy e protezione da IDOR** (accesso cross-tenant tramite manipolazione di ID nelle richieste API, incluse spese/rate), ciclo di vita delle segnalazioni (creazione, transizioni di stato, commenti interni/pubblici, allegati), visibilità delle comunicazioni per pubblico, visibilità dei documenti per ruolo, assegnazione fornitori/interventi, contabilità (ripartizione millesimale/in parti uguali con arrotondamento esatto, autorizzazioni, stato pagamenti).
+La suite copre autenticazione (via email o cellulare), inviti (via email o solo cellulare), **multi-tenancy e protezione da IDOR** (accesso cross-tenant tramite manipolazione di ID nelle richieste API, incluse spese/rate/assemblee), ciclo di vita delle segnalazioni (creazione, transizioni di stato, commenti interni/pubblici, allegati), visibilità delle comunicazioni per pubblico, visibilità dei documenti per ruolo, assegnazione fornitori/interventi, contabilità (ripartizione millesimale/in parti uguali con arrotondamento esatto, autorizzazioni, stato pagamenti), assemblee (convocazione, delibere, caricamento verbale, autorizzazioni), sottoscrizione alle notifiche push.
 
 ### Frontend
 

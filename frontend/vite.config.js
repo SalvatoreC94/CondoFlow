@@ -14,6 +14,14 @@ export default defineConfig({
   plugins: [
     vue(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectManifest: {
+        // The API isn't precached (it's handled by the NetworkFirst route in
+        // sw.js), so keep the precache manifest to the built app shell only.
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+      },
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
@@ -32,28 +40,24 @@ export default defineConfig({
           { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api/, /^\/sanctum/, /^\/storage/],
-        runtimeCaching: [
-          {
-            urlPattern: /\/api\//,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 6,
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
-      },
       devOptions: {
         enabled: false,
+        type: 'module',
       },
     }),
   ],
   server: {
+    port: 5173,
+    proxy: {
+      '/api': { target: 'http://localhost:8000', changeOrigin: true },
+      '/sanctum': { target: 'http://localhost:8000', changeOrigin: true },
+      '/storage': { target: 'http://localhost:8000', changeOrigin: true },
+    },
+  },
+  // `vite preview` serves the production build (needed to test the service
+  // worker/PWA locally, since it's disabled in `vite dev`) — same proxy as
+  // the dev server so it can talk to the local backend too.
+  preview: {
     port: 5173,
     proxy: {
       '/api': { target: 'http://localhost:8000', changeOrigin: true },

@@ -89,6 +89,15 @@ onMounted(async () => {
           >Documenti</span
         >
       </RouterLink>
+      <RouterLink
+        to="/app/assemblee"
+        class="flex flex-col items-start gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition active:scale-[0.98]"
+      >
+        <span class="text-2xl">🗳️</span>
+        <span class="text-sm font-semibold leading-tight text-slate-900"
+          >Assemblee</span
+        >
+      </RouterLink>
     </div>
 
     <section>

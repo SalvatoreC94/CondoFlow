@@ -4,6 +4,8 @@ namespace App\Notifications;
 
 use App\Models\Announcement;
 use Illuminate\Notifications\Notification;
+use NotificationChannels\WebPush\WebPushChannel;
+use NotificationChannels\WebPush\WebPushMessage;
 
 class AnnouncementPublished extends Notification
 {
@@ -11,7 +13,7 @@ class AnnouncementPublished extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return ['database', WebPushChannel::class];
     }
 
     public function toDatabase(object $notifiable): array
@@ -22,5 +24,13 @@ class AnnouncementPublished extends Notification
             'title' => 'Nuova comunicazione',
             'message' => $this->announcement->title,
         ];
+    }
+
+    public function toWebPush(object $notifiable): WebPushMessage
+    {
+        return (new WebPushMessage)
+            ->title('Nuova comunicazione')
+            ->body($this->announcement->title)
+            ->data(['url' => "/app/comunicazioni/{$this->announcement->id}"]);
     }
 }

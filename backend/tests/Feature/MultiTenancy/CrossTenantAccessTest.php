@@ -2,6 +2,7 @@
 
 use App\Enums\TicketStatus;
 use App\Models\Announcement;
+use App\Models\Assembly;
 use App\Models\Document;
 use App\Models\DocumentCategory;
 use App\Models\Expense;
@@ -190,4 +191,22 @@ it('never lets an administrator of condominium A mark a condominium Bs charge as
         ->assertForbidden();
 
     expect($chargeB->fresh()->paid)->toBeFalse();
+});
+
+it('never lets a resident of condominium A view or manage condominium Bs assemblies', function () {
+    $assemblyB = Assembly::factory()->create(['condominium_id' => $this->condoB->id, 'created_by' => $this->adminB->id]);
+
+    $this->actingAs($this->residentA, 'sanctum')
+        ->getJson("/api/assemblies/{$assemblyB->id}")
+        ->assertForbidden();
+
+    $this->actingAs($this->adminA, 'sanctum')
+        ->putJson("/api/assemblies/{$assemblyB->id}", ['status' => 'held'])
+        ->assertForbidden();
+
+    $this->actingAs($this->adminA, 'sanctum')
+        ->postJson("/api/assemblies/{$assemblyB->id}/resolutions", ['description' => 'Hijacked', 'outcome' => 'approved'])
+        ->assertForbidden();
+
+    expect($assemblyB->fresh()->status->value)->toBe('scheduled');
 });
