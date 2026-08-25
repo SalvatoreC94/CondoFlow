@@ -22,6 +22,7 @@ class UpdateUnitRequest extends FormRequest
             'floor' => ['nullable', 'string', 'max:20'],
             'type' => ['sometimes', 'required', Rule::in(['apartment', 'garage', 'cellar', 'shop', 'other'])],
             'surface_sqm' => ['nullable', 'numeric', 'min:0'],
+            'millesimi' => ['nullable', 'numeric', 'min:0', 'max:1000'],
             'notes' => ['nullable', 'string'],
         ];
     }

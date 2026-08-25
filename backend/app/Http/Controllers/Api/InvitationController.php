@@ -26,7 +26,8 @@ class InvitationController extends Controller
 
         $user = User::create([
             'name' => $data['name'],
-            'email' => $data['email'],
+            'email' => $data['email'] ?? null,
+            'phone' => $data['phone'] ?? null,
             'role' => UserRole::from($data['role']),
             'status' => UserStatus::Invited,
             'invited_by' => $request->user()->id,
@@ -44,11 +45,19 @@ class InvitationController extends Controller
             $condominium->caretakers()->attach($user->id);
         }
 
-        $user->notify(new UserInvited($user->invitation_token, $condominium));
-
         AuditLog::record('user.invited', $user, [], ['role' => $data['role']], $condominium->id);
 
-        return response()->json(['data' => new UserResource($user)], 201);
+        $response = ['data' => new UserResource($user)];
+
+        if ($user->email) {
+            $user->notify(new UserInvited($user->invitation_token, $condominium));
+        } else {
+            // No email to deliver the invite to: hand the link back to the
+            // administrator so they can share it themselves (SMS, WhatsApp…).
+            $response['invitation_url'] = rtrim(config('app.frontend_url'), '/')."/accetta-invito/{$user->invitation_token}";
+        }
+
+        return response()->json($response, 201);
     }
 
     public function show(string $token): JsonResponse
@@ -68,6 +77,7 @@ class InvitationController extends Controller
             'data' => [
                 'name' => $user->name,
                 'email' => $user->email,
+                'phone' => $user->phone,
                 'role' => $user->role->value,
             ],
         ]);

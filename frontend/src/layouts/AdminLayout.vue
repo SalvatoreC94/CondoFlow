@@ -24,6 +24,7 @@ const navItems = [
   { to: "/admin/comunicazioni", label: "Comunicazioni", icon: "📣" },
   { to: "/admin/fornitori", label: "Fornitori", icon: "🛠️" },
   { to: "/admin/documenti", label: "Documenti", icon: "📄" },
+  { to: "/admin/contabilita", label: "Contabilità", icon: "💶" },
 ];
 
 function isActive(item) {

@@ -16,7 +16,8 @@ class InviteUserRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'unique:users,email'],
+            'email' => ['nullable', 'required_without:phone', 'email', 'unique:users,email'],
+            'phone' => ['nullable', 'required_without:email', 'string', 'max:30', 'unique:users,phone'],
             'role' => ['required', Rule::in(['caretaker', 'condomino'])],
             'unit_id' => ['required_if:role,condomino', 'nullable', 'integer', 'exists:units,id'],
             'relationship' => ['required_if:role,condomino', 'nullable', Rule::in(['owner', 'tenant'])],

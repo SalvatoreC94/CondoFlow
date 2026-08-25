@@ -68,6 +68,11 @@ const routes = [
         component: () => import("@/views/condomino/Documents.vue"),
       },
       {
+        path: "spese",
+        name: "condomino.finance",
+        component: () => import("@/views/condomino/Finance.vue"),
+      },
+      {
         path: "profilo",
         name: "condomino.profile",
         component: () => import("@/views/condomino/Profile.vue"),
@@ -117,6 +122,11 @@ const routes = [
         path: "fornitori",
         name: "admin.suppliers",
         component: () => import("@/views/admin/Suppliers.vue"),
+      },
+      {
+        path: "contabilita",
+        name: "admin.finance",
+        component: () => import("@/views/admin/Finance.vue"),
       },
       {
         path: "documenti",

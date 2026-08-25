@@ -4,6 +4,9 @@ use App\Enums\TicketStatus;
 use App\Models\Announcement;
 use App\Models\Document;
 use App\Models\DocumentCategory;
+use App\Models\Expense;
+use App\Models\Installment;
+use App\Models\InstallmentCharge;
 use App\Models\Supplier;
 use App\Models\Ticket;
 use App\Models\TicketCategory;
@@ -153,4 +156,38 @@ it('never lets a supplier owned by another administrator be read or updated', fu
     $this->actingAs($this->adminA, 'sanctum')
         ->putJson("/api/suppliers/{$supplier->id}", ['name' => 'Hijacked Supplier'])
         ->assertForbidden();
+});
+
+it('never lets an administrator of condominium A view or manage condominium Bs expenses and installments', function () {
+    $expenseB = Expense::factory()->create(['condominium_id' => $this->condoB->id, 'created_by' => $this->adminB->id]);
+    $installmentB = Installment::factory()->create(['condominium_id' => $this->condoB->id, 'created_by' => $this->adminB->id]);
+
+    $this->actingAs($this->adminA, 'sanctum')
+        ->getJson("/api/condominiums/{$this->condoB->id}/expenses")
+        ->assertForbidden();
+
+    $this->actingAs($this->adminA, 'sanctum')
+        ->putJson("/api/expenses/{$expenseB->id}", ['description' => 'Hijacked'])
+        ->assertForbidden();
+
+    $this->actingAs($this->adminA, 'sanctum')
+        ->getJson("/api/installments/{$installmentB->id}")
+        ->assertForbidden();
+
+    $this->actingAs($this->adminA, 'sanctum')
+        ->deleteJson("/api/installments/{$installmentB->id}")
+        ->assertForbidden();
+
+    expect($expenseB->fresh()->description)->not->toBe('Hijacked');
+});
+
+it('never lets an administrator of condominium A mark a condominium Bs charge as paid', function () {
+    $installmentB = Installment::factory()->create(['condominium_id' => $this->condoB->id, 'created_by' => $this->adminB->id]);
+    $chargeB = InstallmentCharge::factory()->create(['installment_id' => $installmentB->id, 'unit_id' => $this->unitB->id]);
+
+    $this->actingAs($this->adminA, 'sanctum')
+        ->patchJson("/api/installment-charges/{$chargeB->id}", ['paid' => true])
+        ->assertForbidden();
+
+    expect($chargeB->fresh()->paid)->toBeFalse();
 });

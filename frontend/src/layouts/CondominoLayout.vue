@@ -16,6 +16,7 @@ const navItems = [
   { to: "/app/segnalazioni", label: "Segnalazioni", icon: "🔧" },
   { to: "/app/comunicazioni", label: "Comunicazioni", icon: "📣" },
   { to: "/app/documenti", label: "Documenti", icon: "📄" },
+  { to: "/app/spese", label: "Spese", icon: "💶" },
   { to: "/app/profilo", label: "Profilo", icon: "👤" },
 ];
 
@@ -33,7 +34,7 @@ function isActive(item) {
     <nav
       class="safe-bottom fixed inset-x-0 bottom-0 z-40 mx-auto max-w-lg border-t border-slate-200 bg-white/95 backdrop-blur"
     >
-      <div class="grid grid-cols-5">
+      <div class="grid grid-cols-6">
         <RouterLink
           v-for="item in navItems"
           :key="item.to"

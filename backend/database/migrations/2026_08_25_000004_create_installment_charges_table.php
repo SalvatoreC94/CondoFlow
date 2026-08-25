@@ -1,0 +1,29 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('installment_charges', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('installment_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('unit_id')->constrained()->cascadeOnDelete();
+            $table->decimal('amount', 10, 2);
+            $table->boolean('paid')->default(false);
+            $table->timestamp('paid_at')->nullable();
+            $table->text('notes')->nullable();
+            $table->timestamps();
+
+            $table->unique(['installment_id', 'unit_id']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('installment_charges');
+    }
+};

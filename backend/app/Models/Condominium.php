@@ -92,6 +92,16 @@ class Condominium extends Model
         return $this->belongsToMany(Supplier::class, 'supplier_condominium')->withTimestamps();
     }
 
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(Expense::class);
+    }
+
+    public function installments(): HasMany
+    {
+        return $this->hasMany(Installment::class);
+    }
+
     /**
      * All users (condomini) that live in this condominium, through their units.
      */
