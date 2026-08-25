@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
 import Avatar from "@/components/ui/Avatar.vue";
@@ -8,6 +8,12 @@ import Card from "@/components/ui/Card.vue";
 import TextField from "@/components/ui/TextField.vue";
 import api from "@/lib/api";
 import { parseApiError } from "@/lib/errors";
+import {
+  disablePush,
+  enablePush,
+  getPushSubscription,
+  isPushSupported,
+} from "@/lib/push";
 import { useAuthStore } from "@/stores/auth";
 import { useToastStore } from "@/stores/toast";
 
@@ -70,6 +76,38 @@ async function savePassword() {
 async function logout() {
   await auth.logout();
   router.push("/login");
+}
+
+const pushSupported = ref(false);
+const pushEnabled = ref(false);
+const pushLoading = ref(false);
+
+onMounted(async () => {
+  pushSupported.value = isPushSupported();
+  if (pushSupported.value) {
+    pushEnabled.value = !!(await getPushSubscription());
+  }
+});
+
+async function togglePush() {
+  pushLoading.value = true;
+  try {
+    if (pushEnabled.value) {
+      await disablePush();
+      pushEnabled.value = false;
+      toast.success("Notifiche push disattivate.");
+    } else {
+      await enablePush();
+      pushEnabled.value = true;
+      toast.success("Notifiche push attivate.");
+    }
+  } catch {
+    toast.error(
+      "Non è stato possibile attivare le notifiche push. Controlla i permessi del browser.",
+    );
+  } finally {
+    pushLoading.value = false;
+  }
 }
 </script>
 
@@ -134,6 +172,28 @@ async function logout() {
           >Aggiorna password</Button
         >
       </form>
+    </Card>
+
+    <Card v-if="pushSupported">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-900">Notifiche push</h2>
+          <p class="mt-0.5 text-xs text-slate-500">
+            {{
+              pushEnabled
+                ? "Attive su questo dispositivo."
+                : "Ricevi un avviso su questo dispositivo per segnalazioni, comunicazioni e assemblee."
+            }}
+          </p>
+        </div>
+        <Button
+          size="sm"
+          :variant="pushEnabled ? 'secondary' : 'primary'"
+          :loading="pushLoading"
+          @click="togglePush"
+          >{{ pushEnabled ? "Disattiva" : "Attiva" }}</Button
+        >
+      </div>
     </Card>
 
     <Button variant="ghost" block @click="logout">Esci</Button>

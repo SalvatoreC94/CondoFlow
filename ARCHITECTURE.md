@@ -39,6 +39,7 @@ Condominium
   ├─ hasMany Ticket
   ├─ hasMany Announcement
   ├─ hasMany Document
+  ├─ hasMany Assembly
   └─ belongsToMany Supplier (via supplier_condominium)
 
 Building (scala/edificio)
@@ -91,12 +92,23 @@ Announcement (comunicazione)
   ├─ belongsToMany Building (se audience=buildings)
   └─ belongsToMany User (recipients, se audience=users; reads, per il "letto/non letto")
 
+Assembly (assemblea condominiale)
+  ├─ belongsTo Condominium
+  ├─ belongsTo User (creator: created_by)
+  ├─ belongsTo Document (minutes_document_id, nullable — il verbale)
+  ├─ type: ordinary | extraordinary, status: scheduled | held | cancelled
+  └─ hasMany AssemblyResolution (delibere)
+
+AssemblyResolution (delibera)
+  ├─ belongsTo Assembly
+  └─ outcome: approved | rejected | postponed
+
 AuditLog — log applicativo per le operazioni sensibili (login, inviti, modifiche a condomini/ticket, cambi password)
 ```
 
 ### Enum applicativi (`app/Enums`)
 
-`UserRole`, `UserStatus`, `UnitType`, `UnitUserRelationship`, `TicketPriority`, `TicketStatus`, `AnnouncementPriority`, `AnnouncementAudience`, `DocumentVisibility`, `SplitMethod` (millesimi | equal, per la ripartizione delle rate). `TicketStatus` incapsula anche la macchina a stati (`allowedTransitions()`), così un ticket non può mai saltare da `new` a `resolved` senza passare dagli stati intermedi.
+`UserRole`, `UserStatus`, `UnitType`, `UnitUserRelationship`, `TicketPriority`, `TicketStatus`, `AnnouncementPriority`, `AnnouncementAudience`, `DocumentVisibility`, `SplitMethod` (millesimi | equal, per la ripartizione delle rate), `AssemblyType`, `AssemblyStatus`, `ResolutionOutcome`. `TicketStatus` incapsula anche la macchina a stati (`allowedTransitions()`), così un ticket non può mai saltare da `new` a `resolved` senza passare dagli stati intermedi.
 
 ### Migrations
 
@@ -112,7 +124,7 @@ La confine di tenant **non è un singolo `tenant_id` globale**, ma dipende dal r
 | `caretaker` | Condomini presenti nella pivot `caretaker_condominium` |
 | `condomino` | Condomini raggiungibili tramite le proprie `units` (pivot `unit_user`) |
 
-Questa logica è centralizzata in `App\Policies\Concerns\ChecksCondominiumAccess` (metodi `administers()`, `caretakes()`, `residesIn()`, `hasAccessTo()`, `isStaffFor()`) e riusata da **ogni** Policy (`CondominiumPolicy`, `UnitPolicy`, `TicketPolicy`, `AnnouncementPolicy`, `DocumentPolicy`, `SupplierPolicy`, `BuildingPolicy`). Nessun controller applica la propria logica di scoping: delega sempre alla Policy tramite `$this->authorize(...)`.
+Questa logica è centralizzata in `App\Policies\Concerns\ChecksCondominiumAccess` (metodi `administers()`, `caretakes()`, `residesIn()`, `hasAccessTo()`, `isStaffFor()`) e riusata da **ogni** Policy (`CondominiumPolicy`, `UnitPolicy`, `TicketPolicy`, `AnnouncementPolicy`, `DocumentPolicy`, `SupplierPolicy`, `BuildingPolicy`, `ExpensePolicy`, `InstallmentPolicy`, `AssemblyPolicy`). Nessun controller applica la propria logica di scoping: delega sempre alla Policy tramite `$this->authorize(...)`.
 
 **Protezione anti-IDOR:** ogni endpoint che riceve un ID di risorsa (`{condominium}`, `{ticket}`, `{unit}`, `{document}`, …) tramite route-model-binding risolve prima il modello dal database, poi verifica l'accesso tramite Policy — quindi cambiare manualmente un ID nell'URL o nel body di una richiesta non consente mai di raggiungere dati di un altro tenant: la richiesta viene rifiutata con `403`, anche quando la risorsa esiste realmente (non si rivela mai con un `404` selettivo se la risorsa esiste per un altro tenant, per non far trapelare informazioni). Questo comportamento è verificato esplicitamente da `tests/Feature/MultiTenancy/CrossTenantAccessTest.php`.
 
@@ -168,14 +180,19 @@ Tutte le rotte sono sotto `/api`, protette da `auth:sanctum` (eccetto login, inv
 | Documenti | `GET/POST /documents`, `GET /documents/{id}/download` (streaming autenticato) |
 | Fornitori | `apiResource /suppliers`, contatti |
 | Contabilità | `GET/POST /condominiums/{id}/expenses`, `PUT/DELETE /expenses/{id}`, `GET/POST /condominiums/{id}/installments`, `GET/DELETE /installments/{id}`, `PATCH /installment-charges/{id}` (segna pagata/da pagare), `GET /me/charges` (le quote del condomino autenticato) |
+| Assemblee | `GET/POST /assemblies` (`?condominium_id=`), `GET/PUT/DELETE /assemblies/{id}`, `POST /assemblies/{id}/resolutions`, `DELETE /assembly-resolutions/{id}`, `POST /assemblies/{id}/minutes` (upload verbale) |
 | Dashboard | `GET /dashboard/stats` (statistiche reali, filtrabili per condominio/periodo) |
-| Notifiche | `GET /notifications`, mark as read |
+| Notifiche | `GET /notifications`, mark as read, `GET /push/vapid-public-key`, `POST/DELETE /push-subscriptions` |
 
 Le risposte usano API Resource dedicate (`app/Http/Resources`) — mai i model Eloquent esposti direttamente — e la paginazione usa il formato standard di Laravel (`AnonymousResourceCollection` su query paginate).
 
 ### Contabilità
 
 `App\Services\InstallmentSplitter` calcola la ripartizione di una rata (`Installment`) tra le unità di un condominio e crea le `InstallmentCharge` corrispondenti in un'unica transazione. Per evitare i classici errori di arrotondamento in virgola mobile sul denaro, la ripartizione lavora sempre in **centesimi interi** con il metodo del resto più grande (*largest-remainder method*): ogni quota viene arrotondata per difetto, poi i centesimi mancanti vengono assegnati uno a uno alle unità con la parte frazionaria più alta — così la somma delle quote coincide sempre esattamente con l'importo totale della rata, mai un centesimo perso o in eccesso. La ripartizione `millesimi` richiede che tutte le unità del condominio abbiano `millesimi` impostato (altrimenti la richiesta è rifiutata con un messaggio esplicito); la ripartizione `equal` divide l'importo in parti uguali indipendentemente dai millesimi. Solo l'amministratore del condominio può gestire spese/rate e segnare le quote come pagate (`CondominiumPolicy@manageFinances`); un condomino vede solo le quote delle proprie unità (`GET /me/charges`).
+
+### Assemblee
+
+Un'`Assembly` viene convocata dall'amministratore con ordine del giorno, tipo (ordinaria/straordinaria), data/luogo; alla creazione notifica tutti i residenti del condominio (`Condominium::residents()`). Dopo lo svolgimento, l'amministratore la segna come `held` (o `cancelled`) tramite l'endpoint di update generico e registra le `AssemblyResolution` (delibere, con esito approvata/respinta/rinviata). Il verbale non è un campo binario sull'assemblea: `POST /assemblies/{id}/minutes` crea un `Document` vero e proprio (categoria "Verbali", creata al volo se non esiste — `firstOrCreate`, così la feature non dipende dal seed demo) e lo collega tramite `minutes_document_id`, riusando quindi tutta l'infrastruttura di storage/download già esistente per i documenti. Solo l'amministratore gestisce assemblee/delibere/verbale (`AssemblyPolicy`); staff e condòmini del condominio vedono in lettura tutte le assemblee (nessuna targeting per audience, a differenza degli annunci — un'assemblea riguarda sempre l'intero condominio).
 
 ### Upload e download file
 
@@ -186,7 +203,15 @@ Le risposte usano API Resource dedicate (`app/Http/Resources`) — mai i model E
 
 ## Notifiche
 
-`App\Notifications` (Laravel Notifications, canali `database` + `mail` dove rilevante): invito utente, nuova segnalazione, cambio di stato, nuovo commento, comunicazione pubblicata, documento pubblicato, intervento completato. In sviluppo `MAIL_MAILER=log` scrive le email nel log invece di inviarle davvero. Le notifiche sono sincrone nell'MVP per semplicità di demo; l'infrastruttura per le code (`QUEUE_CONNECTION=database`, tabella `jobs` già migrata) è pronta per essere attivata (`php artisan queue:work`) quando il volume lo richiederà.
+`App\Notifications` (Laravel Notifications, canali `database` + `mail` dove rilevante + `webpush` per gli eventi più time-sensitive): invito utente, nuova segnalazione, cambio di stato, nuovo commento, comunicazione pubblicata, documento pubblicato, intervento completato, assemblea convocata. In sviluppo `MAIL_MAILER=log` scrive le email nel log invece di inviarle davvero. Le notifiche sono sincrone nell'MVP per semplicità di demo; l'infrastruttura per le code (`QUEUE_CONNECTION=database`, tabella `jobs` già migrata) è pronta per essere attivata (`php artisan queue:work`) quando il volume lo richiederà.
+
+### Notifiche push (Web Push)
+
+Canale `webpush` via `laravel-notification-channels/webpush` (+ `minishlink/web-push` per il protocollo Web Push/VAPID) — nessun servizio di terze parti come Firebase: le notifiche vengono firmate con una coppia di chiavi VAPID generate localmente (`php artisan webpush:vapid`, scrive `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` in `.env`) e inviate direttamente ai servizi push nativi del browser (FCM per Chrome, Mozilla Push per Firefox, ecc.).
+
+- **Backend**: `User` usa il trait `HasPushSubscriptions` del pacchetto (tabella `push_subscriptions`, polimorfica); `PushSubscriptionController` espone `GET /push/vapid-public-key` (la chiave pubblica, non segreta, serve al frontend per sottoscriversi) e `POST`/`DELETE /push-subscriptions`. Ogni notifica che vale la pena ricevere subito (`TicketCreated`, `TicketStatusChanged`, `TicketCommented`, `AnnouncementPublished`, `DocumentPublished`, `InterventionCompleted`, `AssemblyScheduled`) include `WebPushChannel::class` in `via()` e implementa `toWebPush()` con titolo/corpo/URL di destinazione (`data.url`, usato dal service worker per il deep-link al click).
+- **Nessun crash se non configurato**: se `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` sono vuote, il canale semplicemente non invia nulla — nessun errore, le altre notifiche (database/mail) restano invariate. `AppServiceProvider::boot()` sovrascrive il binding del client `WebPush` del pacchetto per passargli il logger di Laravel invece di lasciarlo ricadere su `trigger_error()`: senza `ext-gmp`/`ext-bcmath` (entrambe opzionali) la libreria emette un avviso di performance ad ogni invio, e senza un logger esplicito quell'avviso passa dall'error handler di Laravel come una vera eccezione — interrompendo la richiesta che stava inviando la notifica. Con il logger esplicito l'avviso finisce nel log applicativo, non nel flusso della richiesta.
+- **Frontend**: `vite-plugin-pwa` usa la strategia `injectManifest` (non `generateSW`) proprio per poter scrivere un service worker custom (`frontend/src/sw.js`) che, oltre al precache dell'app shell e alla cache `NetworkFirst` per `/api` (stessa logica di prima, riscritta con Workbox esplicito), gestisce anche gli eventi `push` (mostra la notifica) e `notificationclick` (apre/porta in primo piano la relativa schermata). `src/lib/push.js` incapsula la sottoscrizione (`PushManager.subscribe()` con la chiave VAPID pubblica) e la UI di attivazione/disattivazione è nella pagina Profilo, condivisa da tutti i ruoli.
 
 ## AI
 
@@ -194,17 +219,16 @@ Nessuna chiamata a servizi AI esterni avviene nell'MVP. `ANTHROPIC_API_KEY` è p
 
 ## PWA
 
-`vite-plugin-pwa` genera manifest, service worker (precache dell'app shell + `NetworkFirst` per le chiamate `/api`) e fallback offline (naviga verso la shell cache anche senza rete; i dati richiedono comunque la connessione). Icone e splash ottimizzate per l'installazione su iOS (meta `apple-mobile-web-app-*`) e Android.
+`vite-plugin-pwa` (strategia `injectManifest`, service worker custom in `frontend/src/sw.js`) genera manifest, precache dell'app shell, `NetworkFirst` per le chiamate `/api` e fallback offline (naviga verso la shell cache anche senza rete; i dati richiedono comunque la connessione), oltre a gestire push/notificationclick (vedi [Notifiche push](#notifiche-push-web-push)). Icone e splash ottimizzate per l'installazione su iOS (meta `apple-mobile-web-app-*`) e Android.
 
 ## Roadmap
 
 **Già pronto per l'estensione** (nessuna modifica strutturale richiesta):
-- Gestione assemblee/verbali → nuova entità collegata a `Condominium`, riusa `Document` per i verbali
 - Calendario manutenzioni/scadenze → estensione naturale di `Intervention`
 - Contratti fornitori → nuova entità collegata a `Supplier`
-- Pagamenti online delle rate (Stripe) e piani SaaS (Starter/Professional/Studio) → la ripartizione spese/rate (`Expense`/`Installment`/`InstallmentCharge`) e il modello `Condominium.administrator_id` sono già i punti di aggancio naturali; oggi le quote sono segnate come pagate manualmente dall'amministratore
+- Pagamenti online delle rate (Stripe) e piani SaaS (Starter/Professional/Studio) → la ripartizione spese/rate (`Expense`/`Installment`/`InstallmentCharge`) e il modello `Condominium.administrator_id` sono già i punti di aggancio naturali; oggi le quote sono segnate come pagate manualmente dall'amministratore. Il billing dell'abbonamento SaaS stesso (a carico dell'amministratore) è un'integrazione Stripe separata, ortogonale alla contabilità condominiale: si aggancia a `User`/organizzazione, non a `Condominium`
 - Verifica SMS/OTP del numero di cellulare, invio automatico dell'invito via SMS/WhatsApp Business → il campo `users.phone` e il flusso di invito già lo prevedono come identificativo; manca solo l'integrazione con un provider (es. Twilio) per l'invio automatico e la verifica
-- Push notification browser → nuovo canale su `App\Notifications`, che già astrae il canale di invio
+- Presenze/deleghe alle assemblee, votazioni digitali → estensione naturale di `Assembly`, oggi limitata a convocazione/delibere/verbale (nessun tracciamento di chi ha partecipato o come ha votato)
 - Custom branding per amministratore → colonna su `Condominium` o nuova tabella `administrator_settings`
 - Analytics avanzati → i dati sono già normalizzati (`ticket_status_history`, `interventions`) per costruire report storici senza modifiche allo schema
 - AI assistant / ricerca documentale RAG → vedi sezione [AI](#ai)

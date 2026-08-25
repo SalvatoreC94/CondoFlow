@@ -4,11 +4,15 @@ namespace Database\Seeders;
 
 use App\Enums\AnnouncementAudience;
 use App\Enums\AnnouncementPriority;
+use App\Enums\AssemblyStatus;
+use App\Enums\AssemblyType;
+use App\Enums\ResolutionOutcome;
 use App\Enums\SplitMethod;
 use App\Enums\TicketPriority;
 use App\Enums\TicketStatus;
 use App\Enums\UnitType;
 use App\Models\Announcement;
+use App\Models\Assembly;
 use App\Models\Building;
 use App\Models\Condominium;
 use App\Models\Document;
@@ -183,8 +187,82 @@ class DemoSeeder extends Seeder
         $this->seedAnnouncements($condominium, $admin, $units);
         $this->seedDocuments($condominium, $admin);
         $this->seedFinances($condominium, $admin, $suppliers);
+        $this->seedAssemblies($condominium, $admin);
 
         return $condominium;
+    }
+
+    private function seedAssemblies(Condominium $condominium, User $admin): void
+    {
+        $category = collect($this->documentCategories)->firstWhere('name', 'Verbali');
+
+        $pdf = "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF";
+        $path = 'documents/'.Str::uuid().'.pdf';
+        Storage::disk('local')->put($path, $pdf);
+
+        $minutesDocument = Document::create([
+            'condominium_id' => $condominium->id,
+            'document_category_id' => $category->id,
+            'uploaded_by' => $admin->id,
+            'title' => 'Verbale assemblea ordinaria 2026',
+            'description' => 'Verbale della delibera annuale su bilancio consuntivo e preventivo.',
+            'disk' => 'local',
+            'path' => $path,
+            'original_name' => 'verbale-assemblea-ordinaria-2026.pdf',
+            'mime_type' => 'application/pdf',
+            'size' => strlen($pdf),
+            'visibility' => 'all',
+            'published_at' => now()->subMonths(5),
+        ]);
+
+        $heldOrdinary = Assembly::create([
+            'condominium_id' => $condominium->id,
+            'created_by' => $admin->id,
+            'minutes_document_id' => $minutesDocument->id,
+            'title' => 'Assemblea ordinaria 2026',
+            'type' => AssemblyType::Ordinary,
+            'status' => AssemblyStatus::Held,
+            'agenda' => "1. Approvazione bilancio consuntivo 2025\n2. Approvazione bilancio preventivo 2026\n3. Rinnovo incarico amministratore\n4. Varie ed eventuali",
+            'location' => 'Sede amministrazione, Viale delle Palme 140',
+            'scheduled_at' => now()->subMonths(5),
+            'held_at' => now()->subMonths(5),
+        ]);
+
+        $heldOrdinary->resolutions()->createMany([
+            ['description' => 'Approvazione bilancio consuntivo 2025', 'outcome' => ResolutionOutcome::Approved, 'sort_order' => 0],
+            ['description' => 'Approvazione bilancio preventivo 2026', 'outcome' => ResolutionOutcome::Approved, 'sort_order' => 1],
+            ['description' => 'Rinnovo incarico amministratore Giulia Ferretti', 'outcome' => ResolutionOutcome::Approved, 'sort_order' => 2],
+        ]);
+
+        $heldExtraordinary = Assembly::create([
+            'condominium_id' => $condominium->id,
+            'created_by' => $admin->id,
+            'title' => 'Assemblea straordinaria — rifacimento facciata',
+            'type' => AssemblyType::Extraordinary,
+            'status' => AssemblyStatus::Held,
+            'agenda' => "1. Preventivi rifacimento facciata\n2. Approvazione spesa straordinaria e ripartizione",
+            'location' => 'Videoconferenza',
+            'scheduled_at' => now()->subMonths(2),
+            'held_at' => now()->subMonths(2),
+        ]);
+
+        $heldExtraordinary->resolutions()->create([
+            'description' => 'Approvazione preventivo rifacimento facciata (fornitore selezionato)',
+            'outcome' => ResolutionOutcome::Approved,
+            'notes' => 'Lavori programmati per la primavera 2026.',
+            'sort_order' => 0,
+        ]);
+
+        Assembly::create([
+            'condominium_id' => $condominium->id,
+            'created_by' => $admin->id,
+            'title' => 'Assemblea ordinaria — bilancio consuntivo 2026',
+            'type' => AssemblyType::Ordinary,
+            'status' => AssemblyStatus::Scheduled,
+            'agenda' => "1. Approvazione bilancio consuntivo 2026\n2. Approvazione bilancio preventivo 2027\n3. Varie ed eventuali",
+            'location' => 'Sede amministrazione, Viale delle Palme 140',
+            'scheduled_at' => now()->addMonth(),
+        ]);
     }
 
     /**

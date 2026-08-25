@@ -2,14 +2,14 @@
 
 namespace App\Notifications;
 
-use App\Models\Document;
+use App\Models\Assembly;
 use Illuminate\Notifications\Notification;
 use NotificationChannels\WebPush\WebPushChannel;
 use NotificationChannels\WebPush\WebPushMessage;
 
-class DocumentPublished extends Notification
+class AssemblyScheduled extends Notification
 {
-    public function __construct(public Document $document) {}
+    public function __construct(public Assembly $assembly) {}
 
     public function via(object $notifiable): array
     {
@@ -19,18 +19,18 @@ class DocumentPublished extends Notification
     public function toDatabase(object $notifiable): array
     {
         return [
-            'type' => 'document.published',
-            'document_id' => $this->document->id,
-            'title' => 'Nuovo documento',
-            'message' => $this->document->title,
+            'type' => 'assembly.scheduled',
+            'assembly_id' => $this->assembly->id,
+            'title' => 'Nuova assemblea convocata',
+            'message' => $this->assembly->title,
         ];
     }
 
     public function toWebPush(object $notifiable): WebPushMessage
     {
         return (new WebPushMessage)
-            ->title('Nuovo documento')
-            ->body($this->document->title)
-            ->data(['url' => '/app/documenti']);
+            ->title('Nuova assemblea convocata')
+            ->body($this->assembly->title)
+            ->data(['url' => "/app/assemblee/{$this->assembly->id}"]);
     }
 }

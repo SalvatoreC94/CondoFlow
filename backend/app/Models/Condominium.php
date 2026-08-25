@@ -102,6 +102,11 @@ class Condominium extends Model
         return $this->hasMany(Installment::class);
     }
 
+    public function assemblies(): HasMany
+    {
+        return $this->hasMany(Assembly::class);
+    }
+
     /**
      * All users (condomini) that live in this condominium, through their units.
      */
