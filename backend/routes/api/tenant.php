@@ -34,6 +34,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Condominiums + nested structural resources
     Route::apiResource('condominiums', CondominiumController::class);
 
+    Route::get('condominiums/{condominium}/logo', [CondominiumController::class, 'logo'])->name('condominiums.logo');
+    Route::post('condominiums/{condominium}/logo', [CondominiumController::class, 'uploadLogo']);
+    Route::delete('condominiums/{condominium}/logo', [CondominiumController::class, 'removeLogo']);
+
     Route::get('condominiums/{condominium}/buildings', [BuildingController::class, 'index']);
     Route::post('condominiums/{condominium}/buildings', [BuildingController::class, 'store']);
     Route::put('buildings/{building}', [BuildingController::class, 'update']);

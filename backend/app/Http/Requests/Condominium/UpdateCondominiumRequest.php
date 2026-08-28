@@ -22,6 +22,7 @@ class UpdateCondominiumRequest extends FormRequest
             'country' => ['nullable', 'string', 'size:2'],
             'total_units' => ['nullable', 'integer', 'min:0'],
             'description' => ['nullable', 'string'],
+            'brand_color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
         ];
     }
 }

@@ -215,6 +215,16 @@ Le risposte usano API Resource dedicate (`app/Http/Resources`) — mai i model E
 
 Un'`Assembly` viene convocata dall'amministratore con ordine del giorno, tipo (ordinaria/straordinaria), data/luogo; alla creazione notifica tutti i residenti del condominio (`Condominium::residents()`). Dopo lo svolgimento, l'amministratore la segna come `held` (o `cancelled`) tramite l'endpoint di update generico e registra le `AssemblyResolution` (delibere, con esito approvata/respinta/rinviata). Il verbale non è un campo binario sull'assemblea: `POST /assemblies/{id}/minutes` crea un `Document` vero e proprio (categoria "Verbali", creata al volo se non esiste — `firstOrCreate`, così la feature non dipende dal seed demo) e lo collega tramite `minutes_document_id`, riusando quindi tutta l'infrastruttura di storage/download già esistente per i documenti. Solo l'amministratore gestisce assemblee/delibere/verbale (`AssemblyPolicy`); staff e condòmini del condominio vedono in lettura tutte le assemblee (nessuna targeting per audience, a differenza degli annunci — un'assemblea riguarda sempre l'intero condominio).
 
+### Custom branding per condominio
+
+Ogni condominio può avere un logo e un colore identificativo (`brand_color`, esadecimale) propri, impostabili dall'amministratore che lo gestisce e mostrati a condòmini e custodi di quel condominio — utile per un amministratore che gestisce più condomini/palazzine con identità visive diverse (es. per conto di più proprietà).
+
+- Colonne su `condominiums`: `logo_path`, `logo_mime_type` (nessuna colonna pubblica per l'URL — generato lato server via `route()`), `brand_color`.
+- `brand_color` si imposta con la normale `PUT /condominiums/{id}` (stesso endpoint degli altri campi), validato con una regex esadecimale (`#RRGGBB`).
+- Il logo ha un ciclo di vita a parte, perché richiede un upload multipart: `POST /condominiums/{id}/logo` (sostituisce ed elimina l'eventuale logo precedente), `DELETE /condominiums/{id}/logo`, `GET /condominiums/{id}/logo` (streaming autenticato, stesso pattern di `DocumentController@download`: mai un URL pubblico diretto). Solo l'amministratore del condominio può caricare/rimuovere il logo o cambiare il colore (`CondominiumPolicy@update`, già esistente — nessuna nuova ability); vederlo è invece permesso a chiunque abbia accesso al condominio (staff e condòmini), tramite `CondominiumPolicy@view`.
+- `CondominiumResource` espone `brand_color`, `has_logo` e `logo_url` (quest'ultimo `null` quando non c'è un logo) — arrivano quindi automaticamente anche dentro `/api/me` per un condomino (`units.condominium.*`), senza bisogno di un endpoint dedicato.
+- Nel frontend: l'amministratore gestisce logo/colore da un tab "Branding" in `CondominiumDetail.vue`; il colore viene applicato come accento (CTA e voce attiva della barra di navigazione) e il logo mostrato in intestazione nelle viste del condomino (`CondominoLayout.vue`, `condomino/Home.vue`) — un fallback silenzioso ai colori/icona di default quando non impostati, mai un errore.
+
 ### Upload e download file
 
 - Validazione MIME esplicita (`mimes:jpg,jpeg,png,webp,heic,pdf` per gli allegati ticket; PDF/Office/immagini per i documenti) e limite dimensione.
@@ -251,7 +261,6 @@ Nessuna chiamata a servizi AI esterni avviene nell'MVP. `ANTHROPIC_API_KEY` è p
 - Billing dell'abbonamento SaaS via Stripe (a carico dell'amministratore/cliente, mai dei condòmini) → il [pannello piattaforma](#pannello-piattaforma-operatore-saas) e i campi `subscription_*` su `users` sono già pronti come punto di aggancio: oggi lo stato si gestisce manualmente da `/platform`, l'integrazione andrebbe a scrivere sugli stessi campi da un webhook Stripe invece che da un form. Struttura dei piani (tier) e comportamento in caso di mancato pagamento (blocco totale) ancora da definire in dettaglio prima dell'implementazione
 - Verifica SMS/OTP del numero di cellulare, invio automatico dell'invito via SMS/WhatsApp Business → il campo `users.phone` e il flusso di invito già lo prevedono come identificativo; manca solo l'integrazione con un provider (es. Twilio) per l'invio automatico e la verifica
 - Presenze/deleghe alle assemblee, votazioni digitali → estensione naturale di `Assembly`, oggi limitata a convocazione/delibere/verbale (nessun tracciamento di chi ha partecipato o come ha votato)
-- Custom branding per amministratore → colonna su `Condominium` o nuova tabella `administrator_settings`
 - Analytics avanzati → i dati sono già normalizzati (`ticket_status_history`, `interventions`) per costruire report storici senza modifiche allo schema
 - AI assistant / ricerca documentale RAG → vedi sezione [AI](#ai)
 

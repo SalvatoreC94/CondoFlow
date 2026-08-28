@@ -27,6 +27,9 @@ class Condominium extends Model
         'country',
         'total_units',
         'description',
+        'logo_path',
+        'logo_mime_type',
+        'brand_color',
     ];
 
     protected static function booted(): void
