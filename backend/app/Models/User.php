@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use Database\Factories\UserFactory;
@@ -32,6 +33,10 @@ class User extends Authenticatable
         'invitation_token',
         'invitation_expires_at',
         'invitation_accepted_at',
+        'subscription_status',
+        'subscription_plan',
+        'subscription_ends_at',
+        'subscription_notes',
     ];
 
     protected $hidden = [
@@ -49,6 +54,8 @@ class User extends Authenticatable
             'status' => UserStatus::class,
             'invitation_expires_at' => 'datetime',
             'invitation_accepted_at' => 'datetime',
+            'subscription_status' => SubscriptionStatus::class,
+            'subscription_ends_at' => 'datetime',
         ];
     }
 
