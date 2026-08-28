@@ -1,11 +1,17 @@
 <script setup>
-import { onMounted } from "vue";
+import { computed, onMounted } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 
+import { useAuthStore } from "@/stores/auth";
 import { useNotificationsStore } from "@/stores/notifications";
 
+const auth = useAuthStore();
 const notifications = useNotificationsStore();
 const route = useRoute();
+
+const brandColor = computed(
+  () => auth.user?.units?.[0]?.condominium?.brand_color,
+);
 
 onMounted(() => {
   notifications.fetchUnreadCount();
@@ -40,7 +46,10 @@ function isActive(item) {
           :key="item.to"
           :to="item.to"
           class="flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium transition"
-          :class="isActive(item) ? 'text-primary-600' : 'text-slate-400'"
+          :class="
+            isActive(item) && !brandColor ? 'text-primary-600' : 'text-slate-400'
+          "
+          :style="isActive(item) && brandColor ? { color: brandColor } : {}"
         >
           <span class="text-xl leading-none">{{ item.icon }}</span>
           {{ item.label }}

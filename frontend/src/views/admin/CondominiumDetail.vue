@@ -38,6 +38,71 @@ const unitForm = ref({
 const unitErrors = ref({});
 const savingUnit = ref(false);
 
+const brandColor = ref("#4f46e5");
+const savingBrandColor = ref(false);
+const uploadingLogo = ref(false);
+const removingLogo = ref(false);
+const logoInput = ref(null);
+const logoCacheBust = ref(0);
+
+async function saveBrandColor() {
+  savingBrandColor.value = true;
+  try {
+    const { data } = await api.put(`/api/condominiums/${condominiumId}`, {
+      brand_color: brandColor.value,
+    });
+    condominium.value = data.data;
+    toast.success("Colore aggiornato.");
+  } catch {
+    toast.error("Impossibile aggiornare il colore.");
+  } finally {
+    savingBrandColor.value = false;
+  }
+}
+
+async function uploadLogo(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  uploadingLogo.value = true;
+  try {
+    const fd = new FormData();
+    fd.append("logo", file);
+    const { data } = await api.post(
+      `/api/condominiums/${condominiumId}/logo`,
+      fd,
+      { headers: { "Content-Type": "multipart/form-data" } },
+    );
+    condominium.value = data.data;
+    logoCacheBust.value++;
+    toast.success("Logo aggiornato.");
+  } catch (error) {
+    toast.error(parseApiError(error).message ?? "Impossibile caricare il logo.");
+  } finally {
+    uploadingLogo.value = false;
+    event.target.value = "";
+  }
+}
+
+async function removeLogo() {
+  removingLogo.value = true;
+  try {
+    const { data } = await api.delete(
+      `/api/condominiums/${condominiumId}/logo`,
+    );
+    condominium.value = data.data;
+    toast.success("Logo rimosso.");
+  } catch {
+    toast.error("Impossibile rimuovere il logo.");
+  } finally {
+    removingLogo.value = false;
+  }
+}
+
+const logoPreviewUrl = computed(() => {
+  if (!condominium.value?.has_logo) return null;
+  return `${condominium.value.logo_url}?v=${logoCacheBust.value}`;
+});
+
 const inviteModalOpen = ref(false);
 const inviteForm = ref({
   name: "",
@@ -67,6 +132,7 @@ async function load() {
     api.get(`/api/condominiums/${condominiumId}/users`),
   ]);
   condominium.value = condRes.data.data;
+  brandColor.value = condominium.value.brand_color || "#4f46e5";
   units.value = unitsRes.data.data;
   buildings.value = buildingsRes.data.data;
   residents.value = usersRes.data.data.residents;
@@ -196,6 +262,18 @@ const unitTypeOptions = [
         >
           Persone ({{ residents.length + caretakers.length }})
         </button>
+        <button
+          type="button"
+          class="border-b-2 px-3 py-2 text-sm font-semibold"
+          :class="
+            tab === 'branding'
+              ? 'border-primary-600 text-primary-700'
+              : 'border-transparent text-slate-500'
+          "
+          @click="tab = 'branding'"
+        >
+          Branding
+        </button>
       </div>
 
       <div v-if="tab === 'units'" class="space-y-3">
@@ -237,7 +315,7 @@ const unitTypeOptions = [
         </div>
       </div>
 
-      <div v-else class="space-y-4">
+      <div v-else-if="tab === 'people'" class="space-y-4">
         <div class="flex justify-end">
           <Button size="sm" @click="inviteModalOpen = true"
             >+ Invita persona</Button
@@ -285,6 +363,81 @@ const unitTypeOptions = [
                 </p>
               </div>
             </div>
+          </div>
+        </Card>
+      </div>
+
+      <div v-else-if="tab === 'branding'" class="space-y-4">
+        <Card>
+          <h2 class="mb-1 text-sm font-semibold text-slate-900">Logo</h2>
+          <p class="mb-3 text-xs text-slate-500">
+            Mostrato ai condòmini e ai custodi di questo condominio.
+            Formati supportati: JPG, PNG, WebP — max 2 MB.
+          </p>
+          <div class="flex items-center gap-4">
+            <div
+              class="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+            >
+              <img
+                v-if="logoPreviewUrl"
+                :src="logoPreviewUrl"
+                alt="Logo del condominio"
+                class="h-full w-full object-contain"
+              />
+              <span v-else class="text-2xl">🏢</span>
+            </div>
+            <div class="flex gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                :loading="uploadingLogo"
+                @click="logoInput.click()"
+                >{{
+                  condominium.has_logo ? "Cambia logo" : "Carica logo"
+                }}</Button
+              >
+              <Button
+                v-if="condominium.has_logo"
+                size="sm"
+                variant="secondary"
+                :loading="removingLogo"
+                @click="removeLogo"
+                >Rimuovi</Button
+              >
+            </div>
+            <input
+              ref="logoInput"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              class="hidden"
+              @change="uploadLogo"
+            />
+          </div>
+        </Card>
+
+        <Card>
+          <h2 class="mb-1 text-sm font-semibold text-slate-900">
+            Colore identificativo
+          </h2>
+          <p class="mb-3 text-xs text-slate-500">
+            Usato come accento nell'app dei condòmini per riconoscere subito
+            il proprio condominio.
+          </p>
+          <div class="flex items-center gap-3">
+            <input
+              v-model="brandColor"
+              type="color"
+              class="h-10 w-14 cursor-pointer rounded-lg border border-slate-200"
+            />
+            <span class="font-mono text-sm text-slate-600">{{
+              brandColor
+            }}</span>
+            <Button
+              size="sm"
+              :loading="savingBrandColor"
+              @click="saveBrandColor"
+              >Salva colore</Button
+            >
           </div>
         </Card>
       </div>

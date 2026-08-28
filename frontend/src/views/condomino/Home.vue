@@ -16,6 +16,11 @@ const recentAnnouncements = ref([]);
 
 const firstName = computed(() => auth.user?.name?.split(" ")[0] ?? "");
 const condominium = computed(() => auth.user?.units?.[0]?.condominium);
+const brandStyle = computed(() =>
+  condominium.value?.brand_color
+    ? { backgroundColor: condominium.value.brand_color }
+    : {},
+);
 
 const greeting = computed(() => {
   const hour = new Date().getHours();
@@ -45,17 +50,26 @@ onMounted(async () => {
 
 <template>
   <div class="space-y-6 px-4 pt-6">
-    <div>
-      <p class="text-sm text-slate-500">{{ condominium?.name }}</p>
-      <h1 class="text-2xl font-bold text-slate-900">
-        {{ greeting }}, {{ firstName }}
-      </h1>
+    <div class="flex items-center gap-3">
+      <img
+        v-if="condominium?.has_logo"
+        :src="condominium.logo_url"
+        alt=""
+        class="h-10 w-10 flex-shrink-0 rounded-xl object-contain"
+      />
+      <div>
+        <p class="text-sm text-slate-500">{{ condominium?.name }}</p>
+        <h1 class="text-2xl font-bold text-slate-900">
+          {{ greeting }}, {{ firstName }}
+        </h1>
+      </div>
     </div>
 
     <div class="grid grid-cols-2 gap-3">
       <RouterLink
         to="/app/segnalazioni/nuova"
         class="flex flex-col items-start gap-2 rounded-2xl bg-primary-600 p-4 text-white shadow-sm transition active:scale-[0.98]"
+        :style="brandStyle"
       >
         <span class="text-2xl">🔧</span>
         <span class="text-sm font-semibold leading-tight"

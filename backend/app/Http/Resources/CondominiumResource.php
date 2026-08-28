@@ -21,6 +21,9 @@ class CondominiumResource extends JsonResource
             'total_units' => $this->total_units,
             'units_count' => $this->whenCounted('units'),
             'description' => $this->description,
+            'brand_color' => $this->brand_color,
+            'has_logo' => (bool) $this->logo_path,
+            'logo_url' => $this->logo_path ? route('condominiums.logo', ['condominium' => $this->id]) : null,
             'administrator' => new UserResource($this->whenLoaded('administrator')),
             'created_at' => $this->created_at,
         ];
