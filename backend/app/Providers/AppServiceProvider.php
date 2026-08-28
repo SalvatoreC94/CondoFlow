@@ -2,7 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\PlatformAuditLog;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Minishlink\WebPush\WebPush;
 use NotificationChannels\WebPush\WebPushChannel;
@@ -41,6 +45,23 @@ class AppServiceProvider extends ServiceProvider
                 auth: $this->vapidAuth(),
                 logger: $this->app->make('log'),
             ))->setReuseVAPIDHeaders(true));
+
+        // Every login/logout on the platform-operator panel is worth a
+        // record on its own audit trail (who accessed customer data, and
+        // when) — not just the create/update/delete actions taken once
+        // inside it. Scoped to the `platform` guard only: tenant-side
+        // logins already have their own flow and aren't relevant here.
+        Event::listen(Login::class, function (Login $event): void {
+            if ($event->guard === 'platform') {
+                PlatformAuditLog::record('login', actorId: $event->user->getAuthIdentifier());
+            }
+        });
+
+        Event::listen(Logout::class, function (Logout $event): void {
+            if ($event->guard === 'platform' && $event->user) {
+                PlatformAuditLog::record('logout', actorId: $event->user->getAuthIdentifier());
+            }
+        });
     }
 
     /**

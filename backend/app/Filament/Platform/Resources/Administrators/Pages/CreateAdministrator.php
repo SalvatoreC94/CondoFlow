@@ -4,6 +4,7 @@ namespace App\Filament\Platform\Resources\Administrators\Pages;
 
 use App\Enums\UserStatus;
 use App\Filament\Platform\Resources\Administrators\AdministratorResource;
+use App\Models\PlatformAuditLog;
 use App\Notifications\UserInvited;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Str;
@@ -24,5 +25,7 @@ class CreateAdministrator extends CreateRecord
     protected function afterCreate(): void
     {
         $this->record->notify(new UserInvited($this->record->invitation_token));
+
+        PlatformAuditLog::logCreate($this->record);
     }
 }
