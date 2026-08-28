@@ -2,11 +2,16 @@
     "$schema": "https://getcomposer.org/schema.json",
     "name": "condoflow/backend",
     "type": "project",
-    "description": "CondoFlow API — multi-tenant condominium management SaaS.",
-    "keywords": ["laravel", "condoflow", "saas"],
+    "description": "CondoFlow API \u2014 multi-tenant condominium management SaaS.",
+    "keywords": [
+        "laravel",
+        "condoflow",
+        "saas"
+    ],
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "filament/filament": "^5.7",
         "laravel-notification-channels/webpush": "^12.1",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.3",
@@ -54,7 +59,8 @@
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
-            "@php artisan package:discover --ansi"
+            "@php artisan package:discover --ansi",
+            "@php artisan filament:upgrade"
         ],
         "post-update-cmd": [
             "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
