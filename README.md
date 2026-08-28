@@ -171,7 +171,8 @@ Cosa contiene oggi:
 
 - **Amministratori** — elenco dei clienti (utenti con ruolo `administrator`), creazione via invito (stesso meccanismo email/link della SPA) e gestione manuale dello stato di abbonamento (`trial`/`active`/`suspended`/`cancelled`, piano, scadenza, note interne) — in attesa dell'integrazione Stripe
 - **Condomini** — vista di sola lettura su tutti i condomini della piattaforma, a prescindere dall'amministratore
-- **Log di controllo** — consultazione di sola lettura di `audit_logs`
+- **Log di controllo** — consultazione di sola lettura di `audit_logs` (le azioni dei tenant)
+- **Log operatori** — consultazione di sola lettura di `platform_audit_logs`: ogni azione (creazione/modifica/cancellazione, login/logout) compiuta da un operatore su questo stesso pannello, per rispondere concretamente a "chi ha visto/modificato i dati di un cliente, e quando"
 - **Categorie segnalazioni / documenti** — CRUD sui dati di riferimento condivisi da tutti i tenant
 - **Dashboard** — numero di amministratori (attivi/in prova), condomini gestiti, unità totali sotto gestione, abbonamenti in scadenza nei prossimi 7 giorni
 
@@ -182,6 +183,8 @@ URL:      http://localhost:8000/platform
 Email:    operator@condoflow.test   (o PLATFORM_OPERATOR_EMAIL)
 Password: password                  (o PLATFORM_OPERATOR_PASSWORD)
 ```
+
+**Nota GDPR:** dare al team CondoFlow accesso ai dati dei clienti tramite questo pannello richiede un'informativa privacy che lo dichiari e un accordo di trattamento dati con ogni amministratore-cliente (visto che tratti indirettamente anche i dati dei loro condòmini). In `docs/legal/` trovi delle **bozze** di questi due documenti, scritte in base a come l'app funziona realmente — da far validare da un avvocato/DPO prima di pubblicarle.
 
 Il pagamento dell'abbonamento SaaS (a carico dell'amministratore/cliente, non dei condòmini) è pianificato ma non ancora implementato: oggi lo stato di abbonamento si gestisce manualmente da questo pannello.
 

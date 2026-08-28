@@ -3,6 +3,7 @@
 namespace App\Filament\Platform\Resources\Administrators\Tables;
 
 use App\Enums\SubscriptionStatus;
+use App\Models\PlatformAuditLog;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -12,6 +13,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
 
 class AdministratorsTable
 {
@@ -65,9 +67,9 @@ class AdministratorsTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                    ForceDeleteBulkAction::make(),
-                    RestoreBulkAction::make(),
+                    DeleteBulkAction::make()->after(fn (Collection $records) => $records->each(fn ($record) => PlatformAuditLog::logDelete($record))),
+                    ForceDeleteBulkAction::make()->after(fn (Collection $records) => $records->each(fn ($record) => PlatformAuditLog::logForceDelete($record))),
+                    RestoreBulkAction::make()->after(fn (Collection $records) => $records->each(fn ($record) => PlatformAuditLog::logRestore($record))),
                 ]),
             ]);
     }
