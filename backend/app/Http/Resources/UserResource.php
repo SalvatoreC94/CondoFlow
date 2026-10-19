@@ -18,6 +18,8 @@ class UserResource extends JsonResource
             'status' => $this->status->value,
             'email_verified_at' => $this->email_verified_at,
             'units' => UnitResource::collection($this->whenLoaded('units')),
+            'relationship' => $this->whenPivotLoaded('unit_user', fn () => $this->pivot->relationship),
+            'is_primary' => $this->whenPivotLoaded('unit_user', fn () => (bool) $this->pivot->is_primary),
             'created_at' => $this->created_at,
         ];
     }

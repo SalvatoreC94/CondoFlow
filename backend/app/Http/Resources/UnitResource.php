@@ -22,6 +22,8 @@ class UnitResource extends JsonResource
             'millesimi' => $this->millesimi,
             'notes' => $this->notes,
             'residents' => UserResource::collection($this->whenLoaded('users')),
+            'relationship' => $this->whenPivotLoaded('unit_user', fn () => $this->pivot->relationship),
+            'is_primary' => $this->whenPivotLoaded('unit_user', fn () => (bool) $this->pivot->is_primary),
         ];
     }
 }
