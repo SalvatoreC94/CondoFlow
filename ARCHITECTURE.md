@@ -110,6 +110,12 @@ AuditLog — log applicativo per le operazioni sensibili (login, inviti, modific
 
 `UserRole`, `UserStatus`, `UnitType`, `UnitUserRelationship`, `TicketPriority`, `TicketStatus`, `AnnouncementPriority`, `AnnouncementAudience`, `DocumentVisibility`, `SplitMethod` (millesimi | equal, per la ripartizione delle rate), `AssemblyType`, `AssemblyStatus`, `ResolutionOutcome`. `TicketStatus` incapsula anche la macchina a stati (`allowedTransitions()`), così un ticket non può mai saltare da `new` a `resolved` senza passare dagli stati intermedi.
 
+### Struttura di edifici/unità — adattabile a qualsiasi condominio
+
+Il modello non assume una forma di condominio specifica: `Building` (scala/edificio) è **opzionale** su `Unit` — un condominio con un solo edificio, molti edifici (es. più scale), o nessun concetto di edificio (es. villette a schiera) sono tutti rappresentabili senza modifiche. Allo stesso modo `floor` è una stringa libera in qualsiasi lingua/convenzione ("T", "PT", "Rialzato", "Rez-de-chaussée", "2°"…), non un enum fisso.
+
+L'unico punto delicato è **l'ordinamento** delle unità per piano (usato da `UnitController@index` per mostrarle raggruppate, piano terra prima): va tenuto separato dall'*etichetta* che l'amministratore sceglie per il piano, perché quella può essere in qualunque convenzione. La colonna `floor_order` (intero nullable, non vincolato a un formato) risolve questo: 0 = piano terra, negativo = interrato, positivo = piani sopra — del tutto indipendente da come `floor` viene scritto. Nel form di creazione unità (`CondominiumDetail.vue`) il valore viene suggerito automaticamente mentre si scrive il piano (numero puro → stesso numero; sinonimi comuni di piano terra come "T"/"PT"/"Terra"/"Rialzato"/"Ground"/"RDC" → 0) ma resta sempre modificabile — dopo una modifica manuale l'auto-suggerimento si disattiva per quel form. Unità senza `floor_order` impostato finiscono in fondo all'ordinamento, mai in cima: non è un'euristica basata su un'unica stringa magica (come un vecchio `CASE WHEN floor = 'T'` hardcoded sulla sola convenzione italiana), quindi funziona a prescindere dalla lingua o dalla convenzione usata.
+
 ### Migrations
 
 Tutte le tabelle sono in `backend/database/migrations`, con foreign key esplicite (incluse quelle verso `condominiums`, che richiedono un nome tabella esplicito per via della pluralizzazione irregolare di "condominium"). Soft delete su `users`, `condominiums`, `units`, `tickets`, `suppliers`, `documents`, `announcements`.
