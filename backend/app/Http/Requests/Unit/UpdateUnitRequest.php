@@ -14,10 +14,8 @@ class UpdateUnitRequest extends FormRequest
 
     public function rules(): array
     {
-        $unit = $this->route('unit');
-
         return [
-            'building_id' => ['nullable', 'integer', Rule::exists('buildings', 'id')->where('condominium_id', $unit->condominium_id)],
+            'building_name' => ['nullable', 'string', 'max:255'],
             'code' => ['sometimes', 'required', 'string', 'max:50'],
             'floor' => ['nullable', 'string', 'max:20'],
             'type' => ['sometimes', 'required', Rule::in(['apartment', 'garage', 'cellar', 'shop', 'other'])],

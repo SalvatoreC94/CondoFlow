@@ -31,7 +31,7 @@ const unitForm = ref({
   code: "",
   floor: "",
   type: "apartment",
-  building_id: "",
+  building_name: "",
   surface_sqm: "",
   millesimi: "",
 });
@@ -146,16 +146,13 @@ async function createUnit() {
   savingUnit.value = true;
   unitErrors.value = {};
   try {
-    await api.post(`/api/condominiums/${condominiumId}/units`, {
-      ...unitForm.value,
-      building_id: unitForm.value.building_id || null,
-    });
+    await api.post(`/api/condominiums/${condominiumId}/units`, unitForm.value);
     unitModalOpen.value = false;
     unitForm.value = {
       code: "",
       floor: "",
       type: "apartment",
-      building_id: "",
+      building_name: "",
       surface_sqm: "",
       millesimi: "",
     };
@@ -460,12 +457,15 @@ const unitTypeOptions = [
             :options="unitTypeOptions"
             :error="unitErrors.type?.[0]"
           />
-          <SelectField
-            v-if="buildings.length"
-            v-model="unitForm.building_id"
+          <TextField
+            v-model="unitForm.building_name"
             label="Scala/edificio (opzionale)"
-            :options="buildings.map((b) => ({ value: b.id, label: b.name }))"
+            placeholder="Es. Edificio A, Scala 2…"
+            list="buildings-datalist"
           />
+          <datalist id="buildings-datalist">
+            <option v-for="b in buildings" :key="b.id" :value="b.name" />
+          </datalist>
           <div class="grid grid-cols-2 gap-3">
             <TextField
               v-model="unitForm.floor"

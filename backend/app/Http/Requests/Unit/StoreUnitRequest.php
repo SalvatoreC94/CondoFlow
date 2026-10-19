@@ -15,7 +15,7 @@ class StoreUnitRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'building_id' => ['nullable', 'integer', Rule::exists('buildings', 'id')->where('condominium_id', $this->route('condominium')->id)],
+            'building_name' => ['nullable', 'string', 'max:255'],
             'code' => ['required', 'string', 'max:50'],
             'floor' => ['nullable', 'string', 'max:20'],
             'type' => ['required', Rule::in(['apartment', 'garage', 'cellar', 'shop', 'other'])],
