@@ -26,17 +26,33 @@ const caretakers = ref([]);
 const loading = ref(true);
 const tab = ref("units");
 
+function emptyUnitForm() {
+  return {
+    code: "",
+    floor: "",
+    type: "apartment",
+    building_name: "",
+    surface_sqm: "",
+    millesimi: "",
+  };
+}
+
 const unitModalOpen = ref(false);
-const unitForm = ref({
-  code: "",
-  floor: "",
-  type: "apartment",
-  building_name: "",
-  surface_sqm: "",
-  millesimi: "",
-});
+const unitForm = ref(emptyUnitForm());
 const unitErrors = ref({});
 const savingUnit = ref(false);
+const editingUnit = ref(null);
+const deletingUnit = ref(false);
+
+const addResidentForm = ref({ user_id: "", relationship: "owner", is_primary: false });
+const addingResident = ref(false);
+const removingResidentId = ref(null);
+
+const availableResidentsForUnit = computed(() => {
+  if (!editingUnit.value) return [];
+  const attachedIds = new Set((editingUnit.value.residents ?? []).map((r) => r.id));
+  return residents.value.filter((r) => !attachedIds.has(r.id));
+});
 
 const brandColor = ref("#4f46e5");
 const savingBrandColor = ref(false);
@@ -142,27 +158,111 @@ async function load() {
 
 onMounted(load);
 
-async function createUnit() {
+function openUnitModal(unit = null) {
+  editingUnit.value = unit;
+  unitForm.value = unit
+    ? {
+        code: unit.code,
+        floor: unit.floor ?? "",
+        type: unit.type,
+        building_name: unit.building?.name ?? "",
+        surface_sqm: unit.surface_sqm ?? "",
+        millesimi: unit.millesimi ?? "",
+      }
+    : emptyUnitForm();
+  addResidentForm.value = { user_id: "", relationship: "owner", is_primary: false };
+  unitErrors.value = {};
+  unitModalOpen.value = true;
+}
+
+async function saveUnit() {
   savingUnit.value = true;
   unitErrors.value = {};
   try {
-    await api.post(`/api/condominiums/${condominiumId}/units`, unitForm.value);
-    unitModalOpen.value = false;
-    unitForm.value = {
-      code: "",
-      floor: "",
-      type: "apartment",
-      building_name: "",
-      surface_sqm: "",
-      millesimi: "",
-    };
-    toast.success("Unità creata.");
+    if (editingUnit.value) {
+      await api.put(`/api/units/${editingUnit.value.id}`, unitForm.value);
+      toast.success("Unità aggiornata.");
+    } else {
+      await api.post(`/api/condominiums/${condominiumId}/units`, unitForm.value);
+      toast.success("Unità creata.");
+      unitModalOpen.value = false;
+    }
     await load();
+    if (editingUnit.value) {
+      editingUnit.value = units.value.find((u) => u.id === editingUnit.value.id) ?? null;
+    }
   } catch (error) {
     unitErrors.value = parseApiError(error).errors;
   } finally {
     savingUnit.value = false;
   }
+}
+
+async function deleteUnit() {
+  if (!editingUnit.value) return;
+  if (!window.confirm(`Eliminare l'unità ${editingUnit.value.code}?`)) return;
+  deletingUnit.value = true;
+  try {
+    await api.delete(`/api/units/${editingUnit.value.id}`);
+    unitModalOpen.value = false;
+    toast.success("Unità eliminata.");
+    await load();
+  } catch {
+    toast.error("Impossibile eliminare l'unità.");
+  } finally {
+    deletingUnit.value = false;
+  }
+}
+
+async function attachExistingResident() {
+  if (!editingUnit.value || !addResidentForm.value.user_id) return;
+  addingResident.value = true;
+  try {
+    await api.post(`/api/units/${editingUnit.value.id}/residents`, addResidentForm.value);
+    addResidentForm.value = { user_id: "", relationship: "owner", is_primary: false };
+    toast.success("Residente collegato.");
+    await load();
+    editingUnit.value = units.value.find((u) => u.id === editingUnit.value.id) ?? null;
+  } catch (error) {
+    toast.error(parseApiError(error).message ?? "Impossibile collegare il residente.");
+  } finally {
+    addingResident.value = false;
+  }
+}
+
+async function removeResident(userId) {
+  if (!editingUnit.value) return;
+  if (!window.confirm("Scollegare questo residente dall'unità?")) return;
+  removingResidentId.value = userId;
+  try {
+    await api.delete(`/api/units/${editingUnit.value.id}/residents/${userId}`);
+    toast.success("Residente scollegato.");
+    await load();
+    editingUnit.value = units.value.find((u) => u.id === editingUnit.value.id) ?? null;
+  } catch {
+    toast.error("Impossibile scollegare il residente.");
+  } finally {
+    removingResidentId.value = null;
+  }
+}
+
+function openInviteModal() {
+  inviteErrors.value = {};
+  inviteForm.value = {
+    name: "",
+    email: "",
+    phone: "",
+    role: "condomino",
+    unit_id: "",
+    relationship: "owner",
+  };
+  inviteModalOpen.value = true;
+}
+
+function inviteForThisUnit() {
+  unitModalOpen.value = false;
+  openInviteModal();
+  inviteForm.value.unit_id = editingUnit.value.id;
 }
 
 async function sendInvite() {
@@ -219,6 +319,18 @@ const unitTypeOptions = [
   { value: "shop", label: "Negozio" },
   { value: "other", label: "Altro" },
 ];
+
+const millesimiTotal = computed(() => {
+  const sum = units.value.reduce((acc, u) => acc + (u.millesimi ? Number(u.millesimi) : 0), 0);
+  return Math.round(sum * 1000) / 1000;
+});
+const unitsWithoutMillesimi = computed(
+  () => units.value.filter((u) => u.millesimi === null || u.millesimi === undefined).length,
+);
+
+function relationshipLabel(relationship) {
+  return relationship === "tenant" ? "inquilino" : "proprietario";
+}
 </script>
 
 <template>
@@ -273,8 +385,14 @@ const unitTypeOptions = [
       </div>
 
       <div v-if="tab === 'units'" class="space-y-3">
-        <div class="flex justify-end">
-          <Button size="sm" @click="unitModalOpen = true">+ Nuova unità</Button>
+        <div class="flex items-center justify-end gap-2">
+          <p v-if="units.length" class="mr-auto text-xs text-slate-500">
+            Millesimi assegnati: {{ millesimiTotal }}/1000
+            <span v-if="unitsWithoutMillesimi" class="text-amber-600">
+              · {{ unitsWithoutMillesimi }} unità senza millesimi</span
+            >
+          </p>
+          <Button size="sm" @click="openUnitModal()">+ Nuova unità</Button>
         </div>
         <EmptyState
           v-if="units.length === 0"
@@ -290,7 +408,12 @@ const unitTypeOptions = [
               {{ floorLabel(group.floor) }} ({{ group.items.length }})
             </h3>
             <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              <Card v-for="u in group.items" :key="u.id">
+              <Card
+                v-for="u in group.items"
+                :key="u.id"
+                class="cursor-pointer transition hover:border-primary-300 hover:shadow-md"
+                @click="openUnitModal(u)"
+              >
                 <p class="font-semibold text-slate-900">{{ u.code }}</p>
                 <p class="text-xs text-slate-500">
                   {{ u.type_label }}
@@ -299,7 +422,13 @@ const unitTypeOptions = [
                 </p>
                 <p class="mt-2 text-xs text-slate-600">
                   <span v-if="u.residents?.length">{{
-                    u.residents.map((r) => r.name).join(", ")
+                    u.residents
+                      .map(
+                        (r) =>
+                          r.name +
+                          (r.relationship ? ` (${relationshipLabel(r.relationship)})` : ""),
+                      )
+                      .join(", ")
                   }}</span>
                   <span v-else class="text-slate-400"
                     >Nessun residente collegato</span
@@ -313,7 +442,7 @@ const unitTypeOptions = [
 
       <div v-else-if="tab === 'people'" class="space-y-4">
         <div class="flex justify-end">
-          <Button size="sm" @click="inviteModalOpen = true"
+          <Button size="sm" @click="openInviteModal"
             >+ Invita persona</Button
           >
         </div>
@@ -355,7 +484,19 @@ const unitTypeOptions = [
                   {{ r.name }}
                 </p>
                 <p class="truncate text-xs text-slate-500">
-                  {{ r.email }} · {{ r.units?.map((u) => u.code).join(", ") }}
+                  {{ r.email
+                  }}<span v-if="r.units?.length">
+                    ·
+                    {{
+                      r.units
+                        .map(
+                          (u) =>
+                            u.code +
+                            (u.relationship ? ` (${relationshipLabel(u.relationship)})` : ""),
+                        )
+                        .join(", ")
+                    }}</span
+                  >
                 </p>
               </div>
             </div>
@@ -440,10 +581,10 @@ const unitTypeOptions = [
 
       <Modal
         :open="unitModalOpen"
-        title="Nuova unità"
+        :title="editingUnit ? `Unità ${editingUnit.code}` : 'Nuova unità'"
         @close="unitModalOpen = false"
       >
-        <form class="space-y-3" @submit.prevent="createUnit">
+        <form class="space-y-3" @submit.prevent="saveUnit">
           <TextField
             v-model="unitForm.code"
             label="Codice unità"
@@ -484,8 +625,82 @@ const unitTypeOptions = [
             type="number"
             :error="unitErrors.millesimi?.[0]"
           />
-          <Button type="submit" block :loading="savingUnit">Crea unità</Button>
+          <div class="flex gap-2">
+            <Button type="submit" block :loading="savingUnit">{{
+              editingUnit ? "Salva modifiche" : "Crea unità"
+            }}</Button>
+            <Button
+              v-if="editingUnit"
+              type="button"
+              variant="danger"
+              :loading="deletingUnit"
+              @click="deleteUnit"
+              >Elimina</Button
+            >
+          </div>
         </form>
+
+        <div v-if="editingUnit" class="mt-5 border-t border-slate-200 pt-4">
+          <h3 class="mb-2 text-sm font-semibold text-slate-900">Residenti</h3>
+          <div
+            v-if="!editingUnit.residents?.length"
+            class="mb-3 text-sm text-slate-400"
+          >
+            Nessun residente collegato.
+          </div>
+          <div v-else class="mb-3 space-y-2">
+            <div
+              v-for="r in editingUnit.residents"
+              :key="r.id"
+              class="flex items-center justify-between gap-2"
+            >
+              <div class="min-w-0">
+                <p class="truncate text-sm text-slate-900">{{ r.name }}</p>
+                <p class="text-xs text-slate-500">
+                  {{ relationshipLabel(r.relationship) }}
+                  <span v-if="r.is_primary">· principale</span>
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                :loading="removingResidentId === r.id"
+                @click="removeResident(r.id)"
+                >Rimuovi</Button
+              >
+            </div>
+          </div>
+
+          <div v-if="availableResidentsForUnit.length" class="flex items-end gap-2">
+            <SelectField
+              v-model="addResidentForm.user_id"
+              label="Collega persona già registrata"
+              class="flex-1"
+              :options="availableResidentsForUnit.map((r) => ({ value: r.id, label: r.name }))"
+            />
+            <SelectField
+              v-model="addResidentForm.relationship"
+              :options="[
+                { value: 'owner', label: 'Proprietario' },
+                { value: 'tenant', label: 'Inquilino' },
+              ]"
+            />
+            <Button
+              type="button"
+              size="sm"
+              :loading="addingResident"
+              @click="attachExistingResident"
+              >Collega</Button
+            >
+          </div>
+          <button
+            type="button"
+            class="mt-2 text-xs font-medium text-primary-700 hover:underline"
+            @click="inviteForThisUnit"
+          >
+            + Invita una persona nuova per questa unità
+          </button>
+        </div>
       </Modal>
 
       <Modal
