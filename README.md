@@ -167,11 +167,10 @@ Il campo "Email o numero di cellulare" nella schermata di login accetta entrambi
 Cosa contiene oggi:
 
 - **Amministratori** — elenco dei clienti (utenti con ruolo `administrator`), creazione via invito (stesso meccanismo email/link della SPA) e gestione manuale dello stato di abbonamento (`trial`/`active`/`suspended`/`cancelled`, piano, scadenza, note interne) — in attesa dell'integrazione Stripe
-- **Condomini** — vista di sola lettura su tutti i condomini della piattaforma, a prescindere dall'amministratore
-- **Log di controllo** — consultazione di sola lettura di `audit_logs` (le azioni dei tenant)
 - **Log operatori** — consultazione di sola lettura di `platform_audit_logs`: ogni azione (creazione/modifica/cancellazione, login/logout) compiuta da un operatore su questo stesso pannello, per rispondere concretamente a "chi ha visto/modificato i dati di un cliente, e quando"
-- **Categorie segnalazioni / documenti** — CRUD sui dati di riferimento condivisi da tutti i tenant
 - **Dashboard** — numero di amministratori (attivi/in prova), condomini gestiti, unità totali sotto gestione, abbonamenti in scadenza nei prossimi 7 giorni
+
+Volutamente **non** contiene (tolto durante un audit di semplificazione pre-lancio, finché l'operatore è uno solo): una vista sui condomini, un visualizzatore dell'audit log dei tenant, CRUD sulle categorie di segnalazioni/documenti — dati ai quali, se mai servisse, si accede comunque direttamente dal database o da `php artisan tinker`. Si possono reintrodurre come risorse Filament quando l'operazione quotidiana lo richiederà davvero.
 
 Per accedere in locale, dopo il seed:
 

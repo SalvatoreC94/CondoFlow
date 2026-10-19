@@ -6,10 +6,8 @@ use App\Filament\Platform\Resources\Administrators\Pages\CreateAdministrator;
 use App\Filament\Platform\Resources\Administrators\Pages\EditAdministrator;
 use App\Filament\Platform\Resources\PlatformAuditLogs\Pages\ListPlatformAuditLogs;
 use App\Filament\Platform\Resources\PlatformAuditLogs\Pages\ViewPlatformAuditLog;
-use App\Filament\Platform\Resources\TicketCategories\Pages\EditTicketCategory;
 use App\Models\PlatformAuditLog;
 use App\Models\PlatformUser;
-use App\Models\TicketCategory;
 use App\Models\User;
 use Filament\Auth\Pages\Login;
 use Livewire\Livewire;
@@ -73,13 +71,13 @@ it('logs only the changed fields on an administrator update, with before/after v
 it('does not log an update when the form is saved without any actual change', function () {
     $this->actingAs($this->platformUser, 'platform');
 
-    $category = TicketCategory::factory()->create();
+    $administrator = User::factory()->create(['role' => UserRole::Administrator]);
 
-    Livewire::test(EditTicketCategory::class, ['record' => $category->getRouteKey()])
-        ->fillForm(['name' => $category->name])
+    Livewire::test(EditAdministrator::class, ['record' => $administrator->getRouteKey()])
+        ->fillForm(['name' => $administrator->name])
         ->call('save');
 
-    expect(PlatformAuditLog::where('action', 'ticket_category.updated')->where('auditable_id', $category->id)->exists())->toBeFalse();
+    expect(PlatformAuditLog::where('action', 'administrator.updated')->where('auditable_id', $administrator->id)->exists())->toBeFalse();
 });
 
 it('lets a platform operator view the platform audit log itself', function () {
