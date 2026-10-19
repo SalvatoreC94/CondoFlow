@@ -24,14 +24,15 @@ class UnitController extends Controller
             ->with(['building', 'users'])
             ->when($request->filled('building_id'), fn ($q) => $q->where('building_id', $request->integer('building_id')))
             ->when($request->filled('search'), fn ($q) => $q->where('code', 'like', '%'.$request->string('search').'%'))
-            // Group by floor (lowest floor_order first — an administrator-set
-            // numeric key, e.g. 0 for ground floor, negative for basements —
-            // decoupled from however "floor" is labeled, since that label can
-            // be in any language/convention: "T", "PT", "Rez-de-chaussée"…)
-            // and, within a floor, by building so units line up by column
+            // Group by floor, floors ordered by when each one was first used
+            // (the floor of the earliest-created unit in the condominium
+            // comes first) rather than by parsing the free-text "floor"
+            // label — an administrator naturally adds ground-floor units
+            // before upper ones, so this needs no extra field to set, and
+            // works whatever language/convention "floor" is written in.
+            // Within a floor, sort by building so units line up by column
             // instead of sorting "code" as plain text.
-            ->orderByRaw('floor_order is null')
-            ->orderBy('floor_order')
+            ->orderByRaw("(select min(id) from units u2 where coalesce(u2.floor, '') = coalesce(units.floor, '') and u2.condominium_id = units.condominium_id and u2.deleted_at is null) asc")
             ->orderBy('building_id')
             ->orderBy('code')
             ->paginate($request->integer('per_page', 50));

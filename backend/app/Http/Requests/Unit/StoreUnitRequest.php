@@ -18,7 +18,6 @@ class StoreUnitRequest extends FormRequest
             'building_id' => ['nullable', 'integer', Rule::exists('buildings', 'id')->where('condominium_id', $this->route('condominium')->id)],
             'code' => ['required', 'string', 'max:50'],
             'floor' => ['nullable', 'string', 'max:20'],
-            'floor_order' => ['nullable', 'integer', 'min:-10', 'max:200'],
             'type' => ['required', Rule::in(['apartment', 'garage', 'cellar', 'shop', 'other'])],
             'surface_sqm' => ['nullable', 'numeric', 'min:0'],
             'millesimi' => ['nullable', 'numeric', 'min:0', 'max:1000'],
