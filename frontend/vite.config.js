@@ -14,14 +14,6 @@ export default defineConfig({
   plugins: [
     vue(),
     VitePWA({
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.js',
-      injectManifest: {
-        // The API isn't precached (it's handled by the NetworkFirst route in
-        // sw.js), so keep the precache manifest to the built app shell only.
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
-      },
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
@@ -38,6 +30,24 @@ export default defineConfig({
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
           { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        // The API responses aren't part of the precached app shell — they're
+        // handled by this separate NetworkFirst runtime route instead, so a
+        // recent GET still resolves offline/on a flaky connection.
+        navigateFallbackDenylist: [/^\/api/, /^\/sanctum/, /^\/storage/],
+        runtimeCaching: [
+          {
+            urlPattern: /^\/api\//,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              networkTimeoutSeconds: 6,
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
       devOptions: {

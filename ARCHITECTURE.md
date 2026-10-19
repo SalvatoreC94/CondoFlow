@@ -203,7 +203,7 @@ Tutte le rotte sono sotto `/api`, protette da `auth:sanctum` (eccetto login, inv
 | Contabilità | `GET/POST /condominiums/{id}/expenses`, `PUT/DELETE /expenses/{id}`, `GET/POST /condominiums/{id}/installments`, `GET/DELETE /installments/{id}`, `PATCH /installment-charges/{id}` (segna pagata/da pagare), `GET /me/charges` (le quote del condomino autenticato) |
 | Assemblee | `GET/POST /assemblies` (`?condominium_id=`), `GET/PUT/DELETE /assemblies/{id}`, `POST /assemblies/{id}/resolutions`, `DELETE /assembly-resolutions/{id}`, `POST /assemblies/{id}/minutes` (upload verbale) |
 | Dashboard | `GET /dashboard/stats` (statistiche reali, filtrabili per condominio/periodo) |
-| Notifiche | `GET /notifications`, mark as read, `GET /push/vapid-public-key`, `POST/DELETE /push-subscriptions` |
+| Notifiche | `GET /notifications`, mark as read |
 
 Le risposte usano API Resource dedicate (`app/Http/Resources`) — mai i model Eloquent esposti direttamente — e la paginazione usa il formato standard di Laravel (`AnonymousResourceCollection` su query paginate).
 
@@ -234,15 +234,7 @@ Ogni condominio può avere un logo e un colore identificativo (`brand_color`, es
 
 ## Notifiche
 
-`App\Notifications` (Laravel Notifications, canali `database` + `mail` dove rilevante + `webpush` per gli eventi più time-sensitive): invito utente, nuova segnalazione, cambio di stato, nuovo commento, comunicazione pubblicata, documento pubblicato, intervento completato, assemblea convocata. In sviluppo `MAIL_MAILER=log` scrive le email nel log invece di inviarle davvero. Le notifiche sono sincrone nell'MVP per semplicità di demo; l'infrastruttura per le code (`QUEUE_CONNECTION=database`, tabella `jobs` già migrata) è pronta per essere attivata (`php artisan queue:work`) quando il volume lo richiederà.
-
-### Notifiche push (Web Push)
-
-Canale `webpush` via `laravel-notification-channels/webpush` (+ `minishlink/web-push` per il protocollo Web Push/VAPID) — nessun servizio di terze parti come Firebase: le notifiche vengono firmate con una coppia di chiavi VAPID generate localmente (`php artisan webpush:vapid`, scrive `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` in `.env`) e inviate direttamente ai servizi push nativi del browser (FCM per Chrome, Mozilla Push per Firefox, ecc.).
-
-- **Backend**: `User` usa il trait `HasPushSubscriptions` del pacchetto (tabella `push_subscriptions`, polimorfica); `PushSubscriptionController` espone `GET /push/vapid-public-key` (la chiave pubblica, non segreta, serve al frontend per sottoscriversi) e `POST`/`DELETE /push-subscriptions`. Ogni notifica che vale la pena ricevere subito (`TicketCreated`, `TicketStatusChanged`, `TicketCommented`, `AnnouncementPublished`, `DocumentPublished`, `InterventionCompleted`, `AssemblyScheduled`) include `WebPushChannel::class` in `via()` e implementa `toWebPush()` con titolo/corpo/URL di destinazione (`data.url`, usato dal service worker per il deep-link al click).
-- **Nessun crash se non configurato**: se `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` sono vuote, il canale semplicemente non invia nulla — nessun errore, le altre notifiche (database/mail) restano invariate. `AppServiceProvider::boot()` sovrascrive il binding del client `WebPush` del pacchetto per passargli il logger di Laravel invece di lasciarlo ricadere su `trigger_error()`: senza `ext-gmp`/`ext-bcmath` (entrambe opzionali) la libreria emette un avviso di performance ad ogni invio, e senza un logger esplicito quell'avviso passa dall'error handler di Laravel come una vera eccezione — interrompendo la richiesta che stava inviando la notifica. Con il logger esplicito l'avviso finisce nel log applicativo, non nel flusso della richiesta.
-- **Frontend**: `vite-plugin-pwa` usa la strategia `injectManifest` (non `generateSW`) proprio per poter scrivere un service worker custom (`frontend/src/sw.js`) che, oltre al precache dell'app shell e alla cache `NetworkFirst` per `/api` (stessa logica di prima, riscritta con Workbox esplicito), gestisce anche gli eventi `push` (mostra la notifica) e `notificationclick` (apre/porta in primo piano la relativa schermata). `src/lib/push.js` incapsula la sottoscrizione (`PushManager.subscribe()` con la chiave VAPID pubblica) e la UI di attivazione/disattivazione è nella pagina Profilo, condivisa da tutti i ruoli.
+`App\Notifications` (Laravel Notifications, canali `database` + `mail` dove rilevante): invito utente, nuova segnalazione, cambio di stato, nuovo commento, comunicazione pubblicata, documento pubblicato, intervento completato, assemblea convocata. In sviluppo `MAIL_MAILER=log` scrive le email nel log invece di inviarle davvero. Le notifiche sono sincrone nell'MVP per semplicità di demo; l'infrastruttura per le code (`QUEUE_CONNECTION=database`, tabella `jobs` già migrata) è pronta per essere attivata (`php artisan queue:work`) quando il volume lo richiederà.
 
 ## AI
 
@@ -250,7 +242,7 @@ Nessuna chiamata a servizi AI esterni avviene nell'MVP. `ANTHROPIC_API_KEY` è p
 
 ## PWA
 
-`vite-plugin-pwa` (strategia `injectManifest`, service worker custom in `frontend/src/sw.js`) genera manifest, precache dell'app shell, `NetworkFirst` per le chiamate `/api` e fallback offline (naviga verso la shell cache anche senza rete; i dati richiedono comunque la connessione), oltre a gestire push/notificationclick (vedi [Notifiche push](#notifiche-push-web-push)). Icone e splash ottimizzate per l'installazione su iOS (meta `apple-mobile-web-app-*`) e Android.
+`vite-plugin-pwa` (strategia `generateSW`) genera manifest, service worker, precache dell'app shell, `NetworkFirst` per le chiamate `/api` e fallback offline (naviga verso la shell cache anche senza rete; i dati richiedono comunque la connessione). Icone e splash ottimizzate per l'installazione su iOS (meta `apple-mobile-web-app-*`) e Android.
 
 ## Roadmap
 
@@ -261,6 +253,7 @@ Nessuna chiamata a servizi AI esterni avviene nell'MVP. `ANTHROPIC_API_KEY` è p
 - Billing dell'abbonamento SaaS via Stripe (a carico dell'amministratore/cliente, mai dei condòmini) → il [pannello piattaforma](#pannello-piattaforma-operatore-saas) e i campi `subscription_*` su `users` sono già pronti come punto di aggancio: oggi lo stato si gestisce manualmente da `/platform`, l'integrazione andrebbe a scrivere sugli stessi campi da un webhook Stripe invece che da un form. Struttura dei piani (tier) e comportamento in caso di mancato pagamento (blocco totale) ancora da definire in dettaglio prima dell'implementazione
 - Verifica SMS/OTP del numero di cellulare, invio automatico dell'invito via SMS/WhatsApp Business → il campo `users.phone` e il flusso di invito già lo prevedono come identificativo; manca solo l'integrazione con un provider (es. Twilio) per l'invio automatico e la verifica
 - Presenze/deleghe alle assemblee, votazioni digitali → estensione naturale di `Assembly`, oggi limitata a convocazione/delibere/verbale (nessun tracciamento di chi ha partecipato o come ha votato)
+- Notifiche push (Web Push) → rimossa deliberatamente dall'MVP (era implementata con `laravel-notification-channels/webpush`, poi tolta per ridurre la complessità da mantenere a fronte di un beneficio marginale rispetto a notifiche in-app/email già presenti): per reintrodurla, il punto di aggancio è `App\Notifications` (aggiungere di nuovo il canale alla `via()` di ogni notifica rilevante) e `vite-plugin-pwa` (tornare alla strategia `injectManifest` con un service worker custom per gli eventi `push`/`notificationclick`)
 - Analytics avanzati → i dati sono già normalizzati (`ticket_status_history`, `interventions`) per costruire report storici senza modifiche allo schema
 - AI assistant / ricerca documentale RAG → vedi sezione [AI](#ai)
 
