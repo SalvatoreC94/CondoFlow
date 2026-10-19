@@ -19,6 +19,7 @@ class Unit extends Model
         'building_id',
         'code',
         'floor',
+        'floor_order',
         'type',
         'surface_sqm',
         'millesimi',
@@ -31,6 +32,7 @@ class Unit extends Model
             'type' => UnitType::class,
             'surface_sqm' => 'decimal:2',
             'millesimi' => 'decimal:3',
+            'floor_order' => 'integer',
         ];
     }
 
