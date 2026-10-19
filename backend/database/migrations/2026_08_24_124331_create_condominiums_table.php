@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('province', 4)->nullable();
             $table->string('postal_code', 10)->nullable();
             $table->string('country', 2)->default('IT');
-            $table->unsignedInteger('total_units')->default(0);
+            $table->unsignedInteger('total_units')->nullable();
             $table->text('description')->nullable();
             $table->timestamps();
             $table->softDeletes();

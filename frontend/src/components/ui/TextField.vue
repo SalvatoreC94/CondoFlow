@@ -8,6 +8,7 @@ defineProps({
   required: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
   autocomplete: { type: String, default: "off" },
+  list: { type: String, default: null },
 });
 defineEmits(["update:modelValue"]);
 </script>
@@ -26,6 +27,7 @@ defineEmits(["update:modelValue"]);
       :required="required"
       :disabled="disabled"
       :autocomplete="autocomplete"
+      :list="list"
       class="w-full rounded-xl border px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-50 disabled:text-slate-400"
       :class="
         error

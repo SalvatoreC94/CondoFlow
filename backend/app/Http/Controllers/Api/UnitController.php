@@ -7,6 +7,7 @@ use App\Http\Requests\Unit\AttachResidentRequest;
 use App\Http\Requests\Unit\StoreUnitRequest;
 use App\Http\Requests\Unit\UpdateUnitRequest;
 use App\Http\Resources\UnitResource;
+use App\Models\Building;
 use App\Models\Condominium;
 use App\Models\Unit;
 use App\Models\User;
@@ -24,14 +25,15 @@ class UnitController extends Controller
             ->with(['building', 'users'])
             ->when($request->filled('building_id'), fn ($q) => $q->where('building_id', $request->integer('building_id')))
             ->when($request->filled('search'), fn ($q) => $q->where('code', 'like', '%'.$request->string('search').'%'))
-            // Group by floor (lowest floor_order first — an administrator-set
-            // numeric key, e.g. 0 for ground floor, negative for basements —
-            // decoupled from however "floor" is labeled, since that label can
-            // be in any language/convention: "T", "PT", "Rez-de-chaussée"…)
-            // and, within a floor, by building so units line up by column
+            // Group by floor, floors ordered by when each one was first used
+            // (the floor of the earliest-created unit in the condominium
+            // comes first) rather than by parsing the free-text "floor"
+            // label — an administrator naturally adds ground-floor units
+            // before upper ones, so this needs no extra field to set, and
+            // works whatever language/convention "floor" is written in.
+            // Within a floor, sort by building so units line up by column
             // instead of sorting "code" as plain text.
-            ->orderByRaw('floor_order is null')
-            ->orderBy('floor_order')
+            ->orderByRaw("(select min(id) from units u2 where coalesce(u2.floor, '') = coalesce(units.floor, '') and u2.condominium_id = units.condominium_id and u2.deleted_at is null) asc")
             ->orderBy('building_id')
             ->orderBy('code')
             ->paginate($request->integer('per_page', 50));
@@ -41,9 +43,13 @@ class UnitController extends Controller
 
     public function store(StoreUnitRequest $request, Condominium $condominium): JsonResponse
     {
-        $unit = $condominium->units()->create($request->validated());
+        $data = $request->validated();
+        $data['building_id'] = $this->resolveBuildingId($condominium, $data['building_name'] ?? null);
+        unset($data['building_name']);
 
-        return response()->json(['data' => new UnitResource($unit)], 201);
+        $unit = $condominium->units()->create($data);
+
+        return response()->json(['data' => new UnitResource($unit->load('building'))], 201);
     }
 
     public function show(Request $request, Unit $unit): JsonResponse
@@ -57,7 +63,13 @@ class UnitController extends Controller
 
     public function update(UpdateUnitRequest $request, Unit $unit): JsonResponse
     {
-        $unit->update($request->validated());
+        $data = $request->validated();
+        if (array_key_exists('building_name', $data)) {
+            $data['building_id'] = $this->resolveBuildingId($unit->condominium, $data['building_name']);
+            unset($data['building_name']);
+        }
+
+        $unit->update($data);
 
         return response()->json(['data' => new UnitResource($unit->fresh(['building', 'users']))]);
     }
@@ -92,5 +104,24 @@ class UnitController extends Controller
         $unit->users()->detach($user->id);
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * No predefined list of buildings/scale to pick from: the admin just
+     * types a name when creating a unit, and it's reused if it already
+     * exists in this condominium or created on the spot if it's new —
+     * matches "floor" already being free text, nothing to set up first.
+     */
+    private function resolveBuildingId(Condominium $condominium, ?string $buildingName): ?int
+    {
+        $buildingName = trim((string) $buildingName);
+
+        if ($buildingName === '') {
+            return null;
+        }
+
+        return Building::firstOrCreate(
+            ['condominium_id' => $condominium->id, 'name' => $buildingName],
+        )->id;
     }
 }

@@ -138,13 +138,12 @@ class DemoSeeder extends Seeder
                 'floors_count' => 3,
             ]);
 
-            foreach ([['T', 0], ['1', 1], ['2', 2]] as [$floorCode, $floorOrder]) {
+            foreach (['T', '1', '2'] as $floorCode) {
                 $units->push(Unit::create([
                     'condominium_id' => $condominium->id,
                     'building_id' => $building->id,
                     'code' => "{$floorCode}/{$column}",
                     'floor' => $floorCode,
-                    'floor_order' => $floorOrder,
                     'type' => UnitType::Apartment,
                     'surface_sqm' => fake()->randomFloat(2, 55, 130),
                 ]));

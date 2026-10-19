@@ -16,7 +16,6 @@ class UnitResource extends JsonResource
             'building' => new BuildingResource($this->whenLoaded('building')),
             'code' => $this->code,
             'floor' => $this->floor,
-            'floor_order' => $this->floor_order,
             'type' => $this->type->value,
             'type_label' => $this->type->label(),
             'surface_sqm' => $this->surface_sqm,

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 
 import Avatar from "@/components/ui/Avatar.vue";
@@ -30,55 +30,13 @@ const unitModalOpen = ref(false);
 const unitForm = ref({
   code: "",
   floor: "",
-  floor_order: "",
   type: "apartment",
-  building_id: "",
+  building_name: "",
   surface_sqm: "",
   millesimi: "",
 });
 const unitErrors = ref({});
 const savingUnit = ref(false);
-
-// The sort order is a number (0 = piano terra, negativi = interrati, positivi
-// = piani sopra), separato dall'etichetta che l'amministratore scrive
-// liberamente in "Piano" (può essere in qualunque lingua/convenzione). Lo
-// suggeriamo mentre scrive per non aggiungere un campo da compilare a mano
-// ogni volta, ma resta sempre modificabile — se l'admin lo tocca non lo
-// sovrascriviamo più.
-const floorOrderTouched = ref(false);
-const groundFloorSynonyms = [
-  "t",
-  "pt",
-  "p.t.",
-  "terra",
-  "piano terra",
-  "rialzato",
-  "ground",
-  "gf",
-  "g",
-  "rdc",
-];
-
-function suggestFloorOrder(floor) {
-  const trimmed = floor.trim();
-  if (trimmed === "") return "";
-  if (/^-?\d+$/.test(trimmed)) return trimmed;
-  if (groundFloorSynonyms.includes(trimmed.toLowerCase())) return "0";
-  return "";
-}
-
-watch(
-  () => unitForm.value.floor,
-  (floor) => {
-    if (floorOrderTouched.value) return;
-    unitForm.value.floor_order = suggestFloorOrder(floor);
-  },
-);
-
-function closeUnitModal() {
-  unitModalOpen.value = false;
-  floorOrderTouched.value = false;
-}
 
 const brandColor = ref("#4f46e5");
 const savingBrandColor = ref(false);
@@ -188,21 +146,16 @@ async function createUnit() {
   savingUnit.value = true;
   unitErrors.value = {};
   try {
-    await api.post(`/api/condominiums/${condominiumId}/units`, {
-      ...unitForm.value,
-      building_id: unitForm.value.building_id || null,
-    });
+    await api.post(`/api/condominiums/${condominiumId}/units`, unitForm.value);
     unitModalOpen.value = false;
     unitForm.value = {
       code: "",
       floor: "",
-      floor_order: "",
       type: "apartment",
-      building_id: "",
+      building_name: "",
       surface_sqm: "",
       millesimi: "",
     };
-    floorOrderTouched.value = false;
     toast.success("Unità creata.");
     await load();
   } catch (error) {
@@ -488,7 +441,7 @@ const unitTypeOptions = [
       <Modal
         :open="unitModalOpen"
         title="Nuova unità"
-        @close="closeUnitModal"
+        @close="unitModalOpen = false"
       >
         <form class="space-y-3" @submit.prevent="createUnit">
           <TextField
@@ -504,30 +457,20 @@ const unitTypeOptions = [
             :options="unitTypeOptions"
             :error="unitErrors.type?.[0]"
           />
-          <SelectField
-            v-if="buildings.length"
-            v-model="unitForm.building_id"
+          <TextField
+            v-model="unitForm.building_name"
             label="Scala/edificio (opzionale)"
-            :options="buildings.map((b) => ({ value: b.id, label: b.name }))"
+            placeholder="Es. Edificio A, Scala 2…"
+            list="buildings-datalist"
           />
-          <div class="grid grid-cols-3 gap-3">
+          <datalist id="buildings-datalist">
+            <option v-for="b in buildings" :key="b.id" :value="b.name" />
+          </datalist>
+          <div class="grid grid-cols-2 gap-3">
             <TextField
               v-model="unitForm.floor"
               label="Piano"
               placeholder="Es. T, 1, Rialzato…"
-            />
-            <TextField
-              :model-value="unitForm.floor_order"
-              label="Ordine"
-              type="number"
-              placeholder="0 = terra"
-              :error="unitErrors.floor_order?.[0]"
-              @update:model-value="
-                (v) => {
-                  floorOrderTouched = true;
-                  unitForm.floor_order = v;
-                }
-              "
             />
             <TextField
               v-model="unitForm.surface_sqm"
