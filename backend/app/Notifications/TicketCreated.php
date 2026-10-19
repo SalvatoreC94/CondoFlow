@@ -2,11 +2,8 @@
 
 namespace App\Notifications;
 
-use App\Enums\UserRole;
 use App\Models\Ticket;
 use Illuminate\Notifications\Notification;
-use NotificationChannels\WebPush\WebPushChannel;
-use NotificationChannels\WebPush\WebPushMessage;
 
 class TicketCreated extends Notification
 {
@@ -14,7 +11,7 @@ class TicketCreated extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database', WebPushChannel::class];
+        return ['database'];
     }
 
     public function toDatabase(object $notifiable): array
@@ -25,17 +22,5 @@ class TicketCreated extends Notification
             'title' => 'Nuova segnalazione',
             'message' => "\"{$this->ticket->title}\" è stata segnalata.",
         ];
-    }
-
-    public function toWebPush(object $notifiable): WebPushMessage
-    {
-        $url = $notifiable->role === UserRole::Caretaker
-            ? "/custode/segnalazioni/{$this->ticket->id}"
-            : "/admin/segnalazioni/{$this->ticket->id}";
-
-        return (new WebPushMessage)
-            ->title('Nuova segnalazione')
-            ->body("\"{$this->ticket->title}\" è stata segnalata.")
-            ->data(['url' => $url]);
     }
 }

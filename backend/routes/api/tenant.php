@@ -14,7 +14,6 @@ use App\Http\Controllers\Api\InstallmentController;
 use App\Http\Controllers\Api\InterventionController;
 use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\NotificationController;
-use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Controllers\Api\SupplierContactController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\TicketAttachmentController;
@@ -115,9 +114,4 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('notifications', [NotificationController::class, 'index']);
     Route::patch('notifications/{notification}/read', [NotificationController::class, 'markRead']);
     Route::post('notifications/read-all', [NotificationController::class, 'markAllRead']);
-
-    // Notifiche push (Web Push)
-    Route::get('push/vapid-public-key', [PushSubscriptionController::class, 'vapidPublicKey']);
-    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store']);
-    Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy']);
 });

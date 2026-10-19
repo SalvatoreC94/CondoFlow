@@ -4,8 +4,6 @@ namespace App\Notifications;
 
 use App\Models\Document;
 use Illuminate\Notifications\Notification;
-use NotificationChannels\WebPush\WebPushChannel;
-use NotificationChannels\WebPush\WebPushMessage;
 
 class DocumentPublished extends Notification
 {
@@ -13,7 +11,7 @@ class DocumentPublished extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database', WebPushChannel::class];
+        return ['database'];
     }
 
     public function toDatabase(object $notifiable): array
@@ -24,13 +22,5 @@ class DocumentPublished extends Notification
             'title' => 'Nuovo documento',
             'message' => $this->document->title,
         ];
-    }
-
-    public function toWebPush(object $notifiable): WebPushMessage
-    {
-        return (new WebPushMessage)
-            ->title('Nuovo documento')
-            ->body($this->document->title)
-            ->data(['url' => '/app/documenti']);
     }
 }
